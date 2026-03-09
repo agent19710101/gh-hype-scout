@@ -1,22 +1,23 @@
 # Roadmap
 
-## Near-term (v0.x)
+## Shipped (through v0.4.0)
 
-- [x] Add `--min-age-days` / `--max-age-days` filters to tune freshness.
-- [ ] Add optional description column truncation for richer table UX.
-- [x] Add rate-limit aware messaging when GitHub API returns 403/429.
-- [ ] Add tests for query merging behavior (`fetchAndMerge` dedupe semantics).
-- [ ] Add golden test for table output format stability.
+- ✅ Age filters: `--min-age-days` / `--max-age-days`
+- ✅ Rate-limit aware API hints (403/429)
+- ✅ Table description truncation (`DESC`) + output golden tests
+- ✅ Query merge/dedupe reliability tests
+- ✅ Sorting modes: `hot`, `stars`, `stars-day`, `age`
+- ✅ Config file support (`~/.config/gh-hype-scout/config.yaml`)
+- ✅ Release automation (GitHub Actions + goreleaser)
 
-## Mid-term (v1)
+## Next (v0.5.0)
 
-- [ ] Add saved query presets (`--preset oss`, `--preset agents`, etc.).
-- [x] Add optional output sorting modes (`hot`, `stars`, `stars-day`).
-- [ ] Add optional age-focused sort mode (`age`).
-- [ ] Add config file support (`~/.config/gh-hype-scout/config.yaml`).
-- [ ] Add release automation (GitHub Actions + goreleaser).
+- [ ] Add saved query presets (`--preset oss`, `--preset agents`, etc.)
+- [ ] Persist lightweight snapshots for historical trend comparisons
+- [ ] Add watchlist mode for periodic scans and delta output
 
-## Open ideas
+## Open ideas (post-v0.5.0)
 
-- [ ] Integrate lightweight historical snapshots to detect week-over-week acceleration.
-- [ ] Add "watchlist" mode for periodic scans and delta output.
+- [ ] Add acceleration scoring from snapshot history (week-over-week trend signal)
+- [ ] Add preset customization via config file overrides
+- [ ] Add watchlist output sinks (JSONL file and optional webhook)
