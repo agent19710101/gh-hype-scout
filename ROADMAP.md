@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.6.0)
+## Shipped (through v0.7.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)
@@ -17,12 +17,19 @@
 - ✅ Watch webhook sink (`--watch-webhook`) with retry/backoff
 - ✅ Modular architecture (thin `main`, internal packages)
 
-## Next (v0.7.0)
+## Shipped in v0.7.0
 
-- [ ] Add snapshot diff subcommand for offline comparisons
-- [ ] Add richer momentum metrics (velocity trend and decay)
-- [ ] Add machine-readable watch summaries with schema versioning
-- [ ] Add delivery signing/auth options for webhook sink
+- [x] Add snapshot diff subcommand for offline comparisons
+- [x] Add richer momentum metrics (velocity trend and decay)
+- [x] Add machine-readable watch summaries with schema versioning
+- [x] Add delivery signing/auth options for webhook sink
+
+## Next (v0.8.0)
+
+- [ ] Terminal TUI mode for live watch sessions
+- [ ] Export/import snapshot archives
+- [ ] Per-preset scoring profiles and alert thresholds
+- [ ] Pluggable output format modules for integrations
 
 ## Open ideas
 

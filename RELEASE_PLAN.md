@@ -1,6 +1,6 @@
 # Release Plan (v0.x)
 
-Status: ✅ Completed through **v0.6.0**
+Status: ✅ Completed through **v0.7.0**
 
 ## v0.2.0 — Output Reliability + UX
 
@@ -48,10 +48,19 @@ Goal: turn open ideas into automation-ready workflows.
 
 Goal: strengthen trend analysis depth and downstream integrations.
 
-- [ ] Add snapshot diff subcommand for offline comparisons.
-- [ ] Add richer momentum metrics and decay-aware ranking.
-- [ ] Add schema-versioned machine-readable watch summaries.
-- [ ] Add webhook delivery auth/signing options.
+- [x] Add snapshot diff subcommand for offline comparisons.
+- [x] Add richer momentum metrics and decay-aware ranking.
+- [x] Add schema-versioned machine-readable watch summaries.
+- [x] Add webhook delivery auth/signing options.
+
+## v0.8.0 — UX + Extensibility
+
+Goal: improve operator workflows and extension points.
+
+- [ ] Add terminal TUI mode for live watch sessions.
+- [ ] Add snapshot export/import workflows.
+- [ ] Add per-preset scoring profiles and thresholds.
+- [ ] Add pluggable output format modules.
 
 ## Release quality gate (applies to each v0.x)
 

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.0 - 2026-03-09
+
+### Added
+- Snapshot diff subcommand workflow for offline comparison operations.
+- Richer momentum analytics layer (velocity trend + decay-aware framing).
+- Schema-versioned machine-readable watch summary output.
+- Webhook delivery auth/signing support for downstream integrations.
+
+### Improved
+- Roadmap and release plan rolled forward to v0.7.0 completion.
+- Release metadata and docs synchronized around v0.7.0.
+
 ## v0.6.0 - 2026-03-09
 
 ### Added
