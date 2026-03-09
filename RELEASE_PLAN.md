@@ -1,6 +1,6 @@
 # Release Plan (v0.x)
 
-Status: ✅ Completed through **v0.0.6**
+Status: ✅ Completed through **v0.6.0**
 
 ## v0.2.0 — Output Reliability + UX
 

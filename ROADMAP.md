@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.0.6)
+## Shipped (through v0.6.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)

@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.0.6 - 2026-03-09
+## v0.6.0 - 2026-03-09
 
 ### Added
 - Preset override support via config (`preset_overrides`).
