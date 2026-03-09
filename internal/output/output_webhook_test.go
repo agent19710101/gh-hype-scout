@@ -51,7 +51,7 @@ func TestSendDeltaWebhookWithClient_Table(t *testing.T) {
 			srv := httptest.NewServer(tt.handler)
 			defer srv.Close()
 			client := &http.Client{Timeout: 1 * time.Second}
-			err := SendDeltaWebhookWithClient(client, srv.URL, now, sampleReport())
+			err := SendDeltaWebhookWithClient(client, srv.URL, now, sampleReport(), WebhookOptions{})
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("wantErr=%v got err=%v", tt.wantErr, err)
 			}

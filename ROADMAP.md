@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.7.0)
+## Shipped (through v0.8.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)
@@ -11,28 +11,24 @@
 - ✅ Release automation (GitHub Actions + goreleaser)
 - ✅ Query presets (`--preset oss|agents|cli|tui|devtools`)
 - ✅ Preset overrides via config (`preset_overrides`)
+- ✅ Preset scoring profiles + accel thresholds (`preset_profiles`)
 - ✅ Snapshot persistence (`~/.cache/gh-hype-scout/snapshots.json`) with retention
 - ✅ Watch mode with periodic delta output (`--watch`, `--interval`)
-- ✅ Watch JSONL sink (`--watch-jsonl`)
-- ✅ Watch webhook sink (`--watch-webhook`) with retry/backoff
+- ✅ Watch JSONL sink (`--watch-jsonl`) with schema versioning
+- ✅ Watch webhook sink (`--watch-webhook`) with retry/backoff and signing/auth
 - ✅ Modular architecture (thin `main`, internal packages)
+- ✅ Optional Bubble Tea TUI mode (`--ui tui`) while preserving stdout default
+- ✅ Snapshot export/import/diff workflows
 
-## Shipped in v0.7.0
+## Next (v0.9.0)
 
-- [x] Add snapshot diff subcommand for offline comparisons
-- [x] Add richer momentum metrics (velocity trend and decay)
-- [x] Add machine-readable watch summaries with schema versioning
-- [x] Add delivery signing/auth options for webhook sink
-
-## Next (v0.8.0)
-
-- [ ] Terminal TUI mode for live watch sessions
-- [ ] Export/import snapshot archives
-- [ ] Per-preset scoring profiles and alert thresholds
-- [ ] Pluggable output format modules for integrations
+- [ ] Multi-panel live TUI with interactive filters
+- [ ] Snapshot compression + archive rotation policies
+- [ ] Advanced momentum models (time-weighted regressions)
+- [ ] Team-level notification routing profiles
 
 ## Open ideas
 
-- [ ] Terminal TUI mode for live watch sessions
-- [ ] Export/import snapshot archives
-- [ ] Per-preset scoring profiles and alert thresholds
+- [ ] Plugin SDK for third-party output/analysis modules
+- [ ] Historical replay mode for trend strategy backtesting
+- [ ] Built-in anomaly detector for sudden repo spikes

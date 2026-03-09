@@ -13,9 +13,21 @@ interval_seconds: 300
 # snapshot_path: /home/you/.cache/gh-hype-scout/snapshots.json
 # watch_jsonl: /home/you/.cache/gh-hype-scout/watch-events.jsonl
 # watch_webhook: https://example.com/gh-hype-scout-delta
+# watch_auth_token: your-token
+# watch_sign_secret: your-hmac-secret
+ui: stdout
+# snapshot_export: /tmp/gh-hype-scout-export.json
+# snapshot_import: /tmp/gh-hype-scout-export.json
+# snapshot_diff: /tmp/a.json:/tmp/b.json
 presets:
   - cli
   - devtools
+preset_profiles:
+  cli:
+    sort: accel
+    score_preset: hot
+    min_stars: 50
+    alert_accel: 5.0
 preset_overrides:
   cli:
     - "language:go stars:>80 created:>2026-01-01"

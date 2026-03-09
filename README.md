@@ -10,8 +10,8 @@ GitHub Trending is useful but noisy and less configurable for focused discovery.
 
 ## Status
 
-- Current version: **v0.7.0**
-- Works today for terminal scanning + JSON export + watch automation sinks
+- Current version: **v0.8.0**
+- Works today for terminal scanning + JSON export + watch automation sinks + optional TUI mode
 - Priorities: deeper momentum analytics, offline snapshot diffing, webhook hardening
 
 ## Install
@@ -80,6 +80,12 @@ gh-hype-scout --desc-width 80
 # watch mode with periodic delta output (every 2 minutes)
 gh-hype-scout --watch --interval 120
 
+# optional TUI mode (stdout remains default)
+gh-hype-scout --ui tui
+
+# TUI + watch mode
+gh-hype-scout --ui tui --watch --interval 120
+
 # write watch deltas to JSONL for automation
 gh-hype-scout --watch --watch-jsonl ./watch-events.jsonl
 
@@ -113,6 +119,12 @@ Or POST delta events to an external automation endpoint:
 - `--watch-webhook https://example.com/gh-hype-scout-delta`
 
 Preset queries can also be customized in config via `preset_overrides`.
+Preset-specific scoring/threshold profiles can be configured via `preset_profiles`.
+
+Snapshot operations:
+- `--snapshot-export /path/to/file.json`
+- `--snapshot-import /path/to/file.json`
+- `--snapshot-diff /path/A.json:/path/B.json`
 
 Use [`config.example.yaml`](./config.example.yaml) as a starting point.
 
@@ -147,7 +159,7 @@ See [ROADMAP.md](./ROADMAP.md) and the scoped [RELEASE_PLAN.md](./RELEASE_PLAN.m
 - CI runs `go test ./...` on PRs and pushes.
 - Tagging `v*` triggers goreleaser via GitHub Actions.
 - Artifacts include Linux/macOS/Windows binaries and checksums.
-- Latest planned cut from this branch: **v0.7.0**.
+- Latest planned cut from this branch: **v0.8.0**.
 
 ## License
 

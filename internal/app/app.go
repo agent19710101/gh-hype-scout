@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/agent19710101/gh-hype-scout/internal/config"
@@ -11,6 +12,7 @@ import (
 	"github.com/agent19710101/gh-hype-scout/internal/query"
 	"github.com/agent19710101/gh-hype-scout/internal/rank"
 	"github.com/agent19710101/gh-hype-scout/internal/snapshot"
+	"github.com/agent19710101/gh-hype-scout/internal/tui"
 )
 
 type Runner struct {
@@ -19,6 +21,29 @@ type Runner struct {
 }
 
 func (r Runner) Run(cfg config.Run) error {
+	if strings.TrimSpace(cfg.SnapshotImport) != "" {
+		if err := snapshot.Import(cfg.SnapshotImport, cfg.SnapshotPath); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(cfg.SnapshotExport) != "" {
+		if err := snapshot.Export(cfg.SnapshotPath, cfg.SnapshotExport); err != nil {
+			return err
+		}
+		return nil
+	}
+	if strings.TrimSpace(cfg.SnapshotDiff) != "" {
+		parts := strings.SplitN(cfg.SnapshotDiff, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("-snapshot-diff must be pathA:pathB")
+		}
+		d, err := snapshot.Diff(parts[0], parts[1])
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(r.Out, "snapshot diff: added=%d removed=%d changed=%d\n", d.Added, d.Removed, d.Changed)
+		return nil
+	}
 	if err := rank.Validate(rank.Config{Sort: cfg.Sort, ScorePreset: cfg.ScorePreset}); err != nil {
 		return err
 	}
@@ -58,6 +83,9 @@ func runOnce(cfg config.Run, queries []string, client *githubapi.Client) ([]rank
 func render(w io.Writer, cfg config.Run, scored []rank.Repo) error {
 	if cfg.JSON {
 		return output.PrintJSON(w, scored)
+	}
+	if strings.EqualFold(cfg.UIMode, "tui") {
+		return tui.Show(scored)
 	}
 	output.PrintTable(w, scored, cfg.DescWidth)
 	if cfg.Themes {
@@ -130,11 +158,18 @@ func (r Runner) runWatch(cfg config.Run, queries []string, client *githubapi.Cli
 		report := output.BuildDelta(prev, scored)
 		if len(prev) > 0 {
 			output.PrintDelta(r.Out, report)
+			if cfg.AlertAccel > 0 {
+				for _, repo := range scored {
+					if repo.Acceleration >= cfg.AlertAccel {
+						fmt.Fprintf(r.Out, "ALERT accel: %s %.2f\n", repo.FullName, repo.Acceleration)
+					}
+				}
+			}
 			_ = output.AppendDeltaJSONL(cfg.WatchJSONL, now, report)
 			reportCopy := report
 			webhook := cfg.WatchWebhook
 			go func(ts time.Time) {
-				_ = output.SendDeltaWebhook(webhook, ts, reportCopy)
+				_ = output.SendDeltaWebhook(webhook, ts, reportCopy, output.WebhookOptions{AuthToken: cfg.WatchAuthToken, SignSecret: cfg.WatchSignSecret})
 			}(now)
 		}
 		_ = snapshot.Append(cfg.SnapshotPath, scored, now)

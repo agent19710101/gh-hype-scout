@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.0 - 2026-03-09
+
+### Added
+- Optional Bubble Tea TUI mode (`--ui tui`) while keeping classic stdout output as the default.
+- Snapshot workflow flags:
+  - `--snapshot-export`
+  - `--snapshot-import`
+  - `--snapshot-diff pathA:pathB`
+- Preset scoring profiles and acceleration alert thresholds via config (`preset_profiles`).
+- Webhook auth/signing options:
+  - `watch_auth_token` / `--watch-auth-token`
+  - `watch_sign_secret` / `--watch-sign-secret`
+
+### Improved
+- Watch machine-readable delta events now include explicit schema versioning (`schema_version: v1`).
+- Documentation refreshed for v0.8.0 workflows and configuration paths.
+
 ## v0.7.0 - 2026-03-09
 
 ### Added

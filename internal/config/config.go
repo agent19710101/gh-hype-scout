@@ -18,25 +18,39 @@ const (
 	DefaultIntervalSec = 300
 )
 
+type PresetProfile struct {
+	Sort        string  `yaml:"sort"`
+	ScorePreset string  `yaml:"score_preset"`
+	MinStars    int     `yaml:"min_stars"`
+	AlertAccel  float64 `yaml:"alert_accel"`
+}
+
 type File struct {
-	Queries         []string            `yaml:"queries"`
-	Presets         []string            `yaml:"presets"`
-	PresetOverrides map[string][]string `yaml:"preset_overrides"`
-	Limit           int                 `yaml:"limit"`
-	JSON            bool                `yaml:"json"`
-	Themes          bool                `yaml:"themes"`
-	MinStars        int                 `yaml:"min_stars"`
-	SinceDays       int                 `yaml:"since_days"`
-	MinAgeDays      int                 `yaml:"min_age_days"`
-	MaxAgeDays      int                 `yaml:"max_age_days"`
-	Sort            string              `yaml:"sort"`
-	ScorePreset     string              `yaml:"score_preset"`
-	DescWidth       int                 `yaml:"desc_width"`
-	Watch           bool                `yaml:"watch"`
-	IntervalSeconds int                 `yaml:"interval_seconds"`
-	SnapshotPath    string              `yaml:"snapshot_path"`
-	WatchJSONL      string              `yaml:"watch_jsonl"`
-	WatchWebhook    string              `yaml:"watch_webhook"`
+	Queries         []string                 `yaml:"queries"`
+	Presets         []string                 `yaml:"presets"`
+	PresetOverrides map[string][]string      `yaml:"preset_overrides"`
+	PresetProfiles  map[string]PresetProfile `yaml:"preset_profiles"`
+	Limit           int                      `yaml:"limit"`
+	JSON            bool                     `yaml:"json"`
+	Themes          bool                     `yaml:"themes"`
+	MinStars        int                      `yaml:"min_stars"`
+	SinceDays       int                      `yaml:"since_days"`
+	MinAgeDays      int                      `yaml:"min_age_days"`
+	MaxAgeDays      int                      `yaml:"max_age_days"`
+	Sort            string                   `yaml:"sort"`
+	ScorePreset     string                   `yaml:"score_preset"`
+	DescWidth       int                      `yaml:"desc_width"`
+	Watch           bool                     `yaml:"watch"`
+	IntervalSeconds int                      `yaml:"interval_seconds"`
+	SnapshotPath    string                   `yaml:"snapshot_path"`
+	WatchJSONL      string                   `yaml:"watch_jsonl"`
+	WatchWebhook    string                   `yaml:"watch_webhook"`
+	WatchAuthToken  string                   `yaml:"watch_auth_token"`
+	WatchSignSecret string                   `yaml:"watch_sign_secret"`
+	UI              string                   `yaml:"ui"`
+	SnapshotExport  string                   `yaml:"snapshot_export"`
+	SnapshotImport  string                   `yaml:"snapshot_import"`
+	SnapshotDiff    string                   `yaml:"snapshot_diff"`
 }
 
 type Run struct {
@@ -58,6 +72,14 @@ type Run struct {
 	SnapshotPath    string
 	WatchJSONL      string
 	WatchWebhook    string
+	WatchAuthToken  string
+	WatchSignSecret string
+	UIMode          string
+	SnapshotExport  string
+	SnapshotImport  string
+	SnapshotDiff    string
+	AlertAccel      float64
+	Explicit        map[string]bool
 }
 
 func DefaultConfigPath() string {
@@ -98,10 +120,17 @@ func Parse() (Run, error) {
 	flag.StringVar(&cfg.SnapshotPath, "snapshot-path", DefaultSnapshotPath(), "Snapshot store path")
 	flag.StringVar(&cfg.WatchJSONL, "watch-jsonl", "", "Append watch delta events as JSONL to this path")
 	flag.StringVar(&cfg.WatchWebhook, "watch-webhook", "", "POST watch delta events to this webhook URL")
+	flag.StringVar(&cfg.WatchAuthToken, "watch-auth-token", "", "Bearer token for watch webhook authorization")
+	flag.StringVar(&cfg.WatchSignSecret, "watch-sign-secret", "", "HMAC secret for watch webhook payload signing")
+	flag.StringVar(&cfg.UIMode, "ui", "stdout", "UI mode: stdout or tui")
+	flag.StringVar(&cfg.SnapshotExport, "snapshot-export", "", "Export snapshots to a JSON file and exit")
+	flag.StringVar(&cfg.SnapshotImport, "snapshot-import", "", "Import snapshots from a JSON file and exit")
+	flag.StringVar(&cfg.SnapshotDiff, "snapshot-diff", "", "Compare two snapshot files: pathA:pathB")
 	flag.Parse()
 
 	set := map[string]bool{}
 	flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	cfg.Explicit = set
 	fc, err := loadFile(configPath)
 	if err != nil {
 		return Run{}, err
@@ -153,6 +182,30 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 			cfg.PresetOverrides[k] = append([]string{}, v...)
 		}
 	}
+	if len(fc.PresetProfiles) > 0 {
+		if cfg.Explicit == nil {
+			cfg.Explicit = map[string]bool{}
+		}
+		for _, p := range cfg.Presets {
+			prof, ok := fc.PresetProfiles[strings.ToLower(strings.TrimSpace(p))]
+			if !ok {
+				continue
+			}
+			if !cfg.Explicit["sort"] && strings.TrimSpace(prof.Sort) != "" {
+				cfg.Sort = prof.Sort
+			}
+			if !cfg.Explicit["score-preset"] && strings.TrimSpace(prof.ScorePreset) != "" {
+				cfg.ScorePreset = prof.ScorePreset
+			}
+			if !cfg.Explicit["min-stars"] && prof.MinStars > 0 {
+				cfg.MinStars = prof.MinStars
+			}
+			if prof.AlertAccel > 0 {
+				cfg.AlertAccel = prof.AlertAccel
+			}
+			break
+		}
+	}
 	if !set["n"] && fc.Limit > 0 {
 		cfg.Limit = fc.Limit
 	}
@@ -195,6 +248,24 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 	if !set["watch-webhook"] && strings.TrimSpace(fc.WatchWebhook) != "" {
 		cfg.WatchWebhook = fc.WatchWebhook
 	}
+	if !set["watch-auth-token"] && strings.TrimSpace(fc.WatchAuthToken) != "" {
+		cfg.WatchAuthToken = fc.WatchAuthToken
+	}
+	if !set["watch-sign-secret"] && strings.TrimSpace(fc.WatchSignSecret) != "" {
+		cfg.WatchSignSecret = fc.WatchSignSecret
+	}
+	if !set["ui"] && strings.TrimSpace(fc.UI) != "" {
+		cfg.UIMode = fc.UI
+	}
+	if !set["snapshot-export"] && strings.TrimSpace(fc.SnapshotExport) != "" {
+		cfg.SnapshotExport = fc.SnapshotExport
+	}
+	if !set["snapshot-import"] && strings.TrimSpace(fc.SnapshotImport) != "" {
+		cfg.SnapshotImport = fc.SnapshotImport
+	}
+	if !set["snapshot-diff"] && strings.TrimSpace(fc.SnapshotDiff) != "" {
+		cfg.SnapshotDiff = fc.SnapshotDiff
+	}
 }
 
 func validate(cfg Run, intervalSeconds int) error {
@@ -218,6 +289,11 @@ func validate(cfg Run, intervalSeconds int) error {
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return fmt.Errorf("invalid -watch-webhook URL")
 		}
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.UIMode)) {
+	case "", "stdout", "tui":
+	default:
+		return fmt.Errorf("invalid -ui %q (expected: stdout, tui)", cfg.UIMode)
 	}
 	return nil
 }

@@ -1,6 +1,6 @@
 # Release Plan (v0.x)
 
-Status: ✅ Completed through **v0.7.0**
+Status: ✅ Completed through **v0.8.0**
 
 ## v0.2.0 — Output Reliability + UX
 
@@ -53,14 +53,23 @@ Goal: strengthen trend analysis depth and downstream integrations.
 - [x] Add schema-versioned machine-readable watch summaries.
 - [x] Add webhook delivery auth/signing options.
 
-## v0.8.0 — UX + Extensibility
+## v0.8.0 — Operator Experience + Workflow Completion
 
-Goal: improve operator workflows and extension points.
+Goal: complete roadmap operator workflows while preserving existing CLI behavior.
 
-- [ ] Add terminal TUI mode for live watch sessions.
-- [ ] Add snapshot export/import workflows.
-- [ ] Add per-preset scoring profiles and thresholds.
-- [ ] Add pluggable output format modules.
+- [x] Add optional Bubble Tea TUI mode (`--ui tui`) with stdout default preserved.
+- [x] Add snapshot export/import workflow commands.
+- [x] Add preset scoring profiles and accel alert thresholds (`preset_profiles`).
+- [x] Add configurable output module selection path (stdout/json/tui) with backward compatibility.
+
+## v0.9.0 — Advanced Modeling + Team Ops
+
+Goal: improve analytical depth and multi-operator workflows.
+
+- [ ] Advanced momentum model variants.
+- [ ] Interactive multi-panel TUI.
+- [ ] Team routing + policy packs.
+- [ ] Plugin SDK for external processors.
 
 ## Release quality gate (applies to each v0.x)
 

@@ -2,6 +2,9 @@ package output
 
 import (
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -129,13 +132,14 @@ type move struct {
 }
 
 type deltaEvent struct {
-	CapturedAt string   `json:"captured_at"`
-	NewRepos   []string `json:"new_repos"`
-	RankMoves  []move   `json:"rank_moves"`
+	SchemaVersion string   `json:"schema_version"`
+	CapturedAt    string   `json:"captured_at"`
+	NewRepos      []string `json:"new_repos"`
+	RankMoves     []move   `json:"rank_moves"`
 }
 
 func toDeltaEvent(now time.Time, report DeltaReport) deltaEvent {
-	e := deltaEvent{CapturedAt: now.Format(time.RFC3339)}
+	e := deltaEvent{SchemaVersion: "v1", CapturedAt: now.Format(time.RFC3339)}
 	for _, r := range report.NewRepos {
 		e.NewRepos = append(e.NewRepos, r.FullName)
 	}
@@ -165,12 +169,17 @@ func AppendDeltaJSONL(path string, now time.Time, report DeltaReport) error {
 	return err
 }
 
-func SendDeltaWebhook(webhookURL string, now time.Time, report DeltaReport) error {
-	client := &http.Client{Timeout: 4 * time.Second}
-	return SendDeltaWebhookWithClient(client, webhookURL, now, report)
+type WebhookOptions struct {
+	AuthToken  string
+	SignSecret string
 }
 
-func SendDeltaWebhookWithClient(client *http.Client, webhookURL string, now time.Time, report DeltaReport) error {
+func SendDeltaWebhook(webhookURL string, now time.Time, report DeltaReport, opts WebhookOptions) error {
+	client := &http.Client{Timeout: 4 * time.Second}
+	return SendDeltaWebhookWithClient(client, webhookURL, now, report, opts)
+}
+
+func SendDeltaWebhookWithClient(client *http.Client, webhookURL string, now time.Time, report DeltaReport, opts WebhookOptions) error {
 	if strings.TrimSpace(webhookURL) == "" {
 		return nil
 	}
@@ -189,6 +198,14 @@ func SendDeltaWebhookWithClient(client *http.Client, webhookURL string, now time
 			return err
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if opts.AuthToken != "" {
+			req.Header.Set("Authorization", "Bearer "+opts.AuthToken)
+		}
+		if opts.SignSecret != "" {
+			h := hmac.New(sha256.New, []byte(opts.SignSecret))
+			_, _ = h.Write(payload)
+			req.Header.Set("X-GH-Hype-Scout-Signature", "sha256="+hex.EncodeToString(h.Sum(nil)))
+		}
 		resp, err := client.Do(req)
 		if err == nil && resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			resp.Body.Close()
