@@ -21,7 +21,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const defaultDescWidth = 56
+const (
+	defaultDescWidth   = 56
+	defaultIntervalSec = 300
+	maxSnapshotRuns    = 96
+)
 
 type searchResponse struct {
 	Items []repo `json:"items"`
@@ -45,18 +49,21 @@ type scoredRepo struct {
 }
 
 type appConfig struct {
-	Queries     []string `yaml:"queries"`
-	Presets     []string `yaml:"presets"`
-	Limit       int      `yaml:"limit"`
-	JSON        bool     `yaml:"json"`
-	Themes      bool     `yaml:"themes"`
-	MinStars    int      `yaml:"min_stars"`
-	SinceDays   int      `yaml:"since_days"`
-	MinAgeDays  int      `yaml:"min_age_days"`
-	MaxAgeDays  int      `yaml:"max_age_days"`
-	Sort        string   `yaml:"sort"`
-	ScorePreset string   `yaml:"score_preset"`
-	DescWidth   int      `yaml:"desc_width"`
+	Queries         []string `yaml:"queries"`
+	Presets         []string `yaml:"presets"`
+	Limit           int      `yaml:"limit"`
+	JSON            bool     `yaml:"json"`
+	Themes          bool     `yaml:"themes"`
+	MinStars        int      `yaml:"min_stars"`
+	SinceDays       int      `yaml:"since_days"`
+	MinAgeDays      int      `yaml:"min_age_days"`
+	MaxAgeDays      int      `yaml:"max_age_days"`
+	Sort            string   `yaml:"sort"`
+	ScorePreset     string   `yaml:"score_preset"`
+	DescWidth       int      `yaml:"desc_width"`
+	Watch           bool     `yaml:"watch"`
+	IntervalSeconds int      `yaml:"interval_seconds"`
+	SnapshotPath    string   `yaml:"snapshot_path"`
 }
 
 type scoreConfig struct {
@@ -64,7 +71,61 @@ type scoreConfig struct {
 	ScorePreset string
 }
 
+type runConfig struct {
+	Queries      []string
+	Limit        int
+	JSON         bool
+	Themes       bool
+	MinStars     int
+	MinAgeDays   int
+	MaxAgeDays   int
+	DescWidth    int
+	Score        scoreConfig
+	Watch        bool
+	Interval     time.Duration
+	SnapshotPath string
+}
+
+type snapshotItem struct {
+	FullName string `json:"full_name"`
+	Stars    int    `json:"stars"`
+	Rank     int    `json:"rank"`
+}
+
+type snapshotRun struct {
+	CapturedAt time.Time      `json:"captured_at"`
+	Items      []snapshotItem `json:"items"`
+}
+
+type snapshotStore struct {
+	Runs []snapshotRun `json:"runs"`
+}
+
+type rankMove struct {
+	FullName   string
+	FromRank   int
+	ToRank     int
+	DeltaRank  int
+	DeltaStars int
+}
+
+type deltaReport struct {
+	NewRepos []scoredRepo
+	Moves    []rankMove
+}
+
 func main() {
+	cfg := parseAndBuildConfig()
+
+	if cfg.Watch {
+		runWatch(cfg)
+		return
+	}
+	scored := runOnce(cfg)
+	_ = appendSnapshot(cfg.SnapshotPath, scored, time.Now().UTC())
+}
+
+func parseAndBuildConfig() runConfig {
 	var queries multiFlag
 	var presets multiFlag
 	var limit int
@@ -78,6 +139,9 @@ func main() {
 	var scorePreset string
 	var configPath string
 	var descWidth int
+	var watch bool
+	var intervalSeconds int
+	var snapshotPath string
 
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.Var(&presets, "preset", "Built-in query preset (repeatable): oss, agents, cli, tui, devtools")
@@ -92,18 +156,19 @@ func main() {
 	flag.StringVar(&scorePreset, "score-preset", "hot", "Score preset for -sort hot: hot, fresh")
 	flag.StringVar(&configPath, "config", defaultConfigPath(), "Config file path")
 	flag.IntVar(&descWidth, "desc-width", defaultDescWidth, "Description column max width for table output")
+	flag.BoolVar(&watch, "watch", false, "Run continuously and show deltas between scans")
+	flag.IntVar(&intervalSeconds, "interval", defaultIntervalSec, "Watch interval in seconds")
+	flag.StringVar(&snapshotPath, "snapshot-path", defaultSnapshotPath(), "Snapshot store path")
 	flag.Parse()
 
 	setFlags := map[string]bool{}
-	flag.Visit(func(f *flag.Flag) {
-		setFlags[f.Name] = true
-	})
+	flag.Visit(func(f *flag.Flag) { setFlags[f.Name] = true })
 
-	cfg, err := loadConfig(configPath)
+	fileCfg, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	applyConfigIfUnset(cfg, setFlags, &queries, &presets, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth)
+	applyConfigIfUnset(fileCfg, setFlags, &queries, &presets, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth, &watch, &intervalSeconds, &snapshotPath)
 
 	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
 		log.Fatal(err)
@@ -115,14 +180,59 @@ func main() {
 	if descWidth < 8 {
 		log.Fatal("-desc-width must be >= 8")
 	}
+	if intervalSeconds < 15 {
+		log.Fatal("-interval must be >= 15 seconds")
+	}
+	if watch && jsonOut {
+		log.Fatal("-watch cannot be combined with -json")
+	}
 
 	resolvedQueries, err := resolveQueries([]string(queries), []string(presets), sinceDays, time.Now().UTC())
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	return runConfig{
+		Queries:      resolvedQueries,
+		Limit:        limit,
+		JSON:         jsonOut,
+		Themes:       showThemes,
+		MinStars:     minStars,
+		MinAgeDays:   minAgeDays,
+		MaxAgeDays:   maxAgeDays,
+		DescWidth:    descWidth,
+		Score:        scfg,
+		Watch:        watch,
+		Interval:     time.Duration(intervalSeconds) * time.Second,
+		SnapshotPath: snapshotPath,
+	}
+}
+
+func runWatch(cfg runConfig) {
+	store, _ := loadSnapshotStore(cfg.SnapshotPath)
+	var prev []snapshotItem
+	if len(store.Runs) > 0 {
+		prev = store.Runs[len(store.Runs)-1].Items
+	}
+
+	for {
+		now := time.Now().UTC()
+		scored := runOnce(cfg)
+		report := buildDelta(prev, scored)
+		if len(prev) > 0 {
+			printDelta(os.Stdout, report)
+		}
+		if err := appendSnapshot(cfg.SnapshotPath, scored, now); err != nil {
+			log.Printf("snapshot warning: %v", err)
+		}
+		prev = toSnapshotItems(scored)
+		time.Sleep(cfg.Interval)
+	}
+}
+
+func runOnce(cfg runConfig) []scoredRepo {
 	client := &http.Client{Timeout: 20 * time.Second}
-	all, err := fetchAndMerge(client, resolvedQueries)
+	all, err := fetchAndMerge(client, cfg.Queries)
 	if err != nil {
 		log.Fatalf("fetch trends: %v", err)
 	}
@@ -130,39 +240,40 @@ func main() {
 		log.Fatal("no repositories returned")
 	}
 
-	scored := score(all, scfg)
-	if minStars > 0 {
+	scored := score(all, cfg.Score)
+	if cfg.MinStars > 0 {
 		filtered := scored[:0]
 		for _, r := range scored {
-			if r.StargazersCount >= minStars {
+			if r.StargazersCount >= cfg.MinStars {
 				filtered = append(filtered, r)
 			}
 		}
 		scored = filtered
 	}
-	scored = filterByAge(scored, minAgeDays, maxAgeDays)
+	scored = filterByAge(scored, cfg.MinAgeDays, cfg.MaxAgeDays)
 	if len(scored) == 0 {
 		log.Fatal("no repositories matched filters")
 	}
-	if limit > len(scored) {
-		limit = len(scored)
+	if cfg.Limit > len(scored) {
+		cfg.Limit = len(scored)
 	}
-	scored = scored[:limit]
+	scored = scored[:cfg.Limit]
 
-	if jsonOut {
+	if cfg.JSON {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
 		if err := enc.Encode(scored); err != nil {
 			log.Fatal(err)
 		}
-		return
+		return scored
 	}
 
-	printTable(os.Stdout, scored, descWidth)
-	if showThemes {
+	printTable(os.Stdout, scored, cfg.DescWidth)
+	if cfg.Themes {
 		fmt.Println()
 		printThemeSummary(scored)
 	}
+	return scored
 }
 
 func resolveQueries(custom []string, presets []string, sinceDays int, now time.Time) ([]string, error) {
@@ -209,21 +320,11 @@ func presetCatalog(sinceDays int, now time.Time) map[string][]string {
 	}
 	since := now.AddDate(0, 0, -sinceDays).Format("2006-01-02")
 	return map[string][]string{
-		"oss": {
-			"stars:>50 created:>" + since,
-		},
-		"agents": {
-			"(agent OR mcp) created:>" + since + " stars:>80",
-		},
-		"cli": {
-			"topic:cli created:>" + since + " stars:>40",
-		},
-		"tui": {
-			"topic:tui created:>" + since + " stars:>20",
-		},
-		"devtools": {
-			"(developer tools) created:>" + since + " stars:>50",
-		},
+		"oss":      {"stars:>50 created:>" + since},
+		"agents":   {"(agent OR mcp) created:>" + since + " stars:>80"},
+		"cli":      {"topic:cli created:>" + since + " stars:>40"},
+		"tui":      {"topic:tui created:>" + since + " stars:>20"},
+		"devtools": {"(developer tools) created:>" + since + " stars:>50"},
 	}
 }
 
@@ -244,6 +345,14 @@ func defaultConfigPath() string {
 	return filepath.Join(home, ".config", "gh-hype-scout", "config.yaml")
 }
 
+func defaultSnapshotPath() string {
+	cache, err := os.UserCacheDir()
+	if err != nil || strings.TrimSpace(cache) == "" {
+		return ""
+	}
+	return filepath.Join(cache, "gh-hype-scout", "snapshots.json")
+}
+
 func loadConfig(path string) (appConfig, error) {
 	if strings.TrimSpace(path) == "" {
 		return appConfig{}, nil
@@ -262,7 +371,7 @@ func loadConfig(path string) (appConfig, error) {
 	return cfg, nil
 }
 
-func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, presets *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int) {
+func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, presets *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int, watch *bool, intervalSeconds *int, snapshotPath *string) {
 	if !setFlags["q"] && len(cfg.Queries) > 0 {
 		*queries = append((*queries)[:0], cfg.Queries...)
 	}
@@ -298,6 +407,15 @@ func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiF
 	}
 	if !setFlags["desc-width"] && cfg.DescWidth > 0 {
 		*descWidth = cfg.DescWidth
+	}
+	if !setFlags["watch"] && cfg.Watch {
+		*watch = cfg.Watch
+	}
+	if !setFlags["interval"] && cfg.IntervalSeconds > 0 {
+		*intervalSeconds = cfg.IntervalSeconds
+	}
+	if !setFlags["snapshot-path"] && strings.TrimSpace(cfg.SnapshotPath) != "" {
+		*snapshotPath = cfg.SnapshotPath
 	}
 }
 
@@ -418,13 +536,7 @@ func score(in []repo, cfg scoreConfig) []scoredRepo {
 		if cfg.ScorePreset == "fresh" {
 			hot = hot * (1 + (1 / math.Sqrt(age)))
 		}
-		out = append(out, scoredRepo{
-			repo:        r,
-			AgeDays:     age,
-			StarsPerDay: spd,
-			HotScore:    hot,
-			Category:    categorize(r),
-		})
+		out = append(out, scoredRepo{repo: r, AgeDays: age, StarsPerDay: spd, HotScore: hot, Category: categorize(r)})
 	}
 	sortScored(out, cfg.Sort)
 	return out
@@ -569,4 +681,107 @@ func printThemeSummary(in []scoredRepo) {
 		fmt.Fprintf(tw, "%s\t%d\t%.1f\n", k, s.Count, avg)
 	}
 	tw.Flush()
+}
+
+func toSnapshotItems(in []scoredRepo) []snapshotItem {
+	items := make([]snapshotItem, 0, len(in))
+	for i, r := range in {
+		items = append(items, snapshotItem{FullName: r.FullName, Stars: r.StargazersCount, Rank: i + 1})
+	}
+	return items
+}
+
+func loadSnapshotStore(path string) (snapshotStore, error) {
+	if strings.TrimSpace(path) == "" {
+		return snapshotStore{}, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return snapshotStore{}, nil
+		}
+		return snapshotStore{}, err
+	}
+	var store snapshotStore
+	if err := json.Unmarshal(b, &store); err != nil {
+		return snapshotStore{}, nil
+	}
+	return store, nil
+}
+
+func appendSnapshot(path string, current []scoredRepo, now time.Time) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	store, err := loadSnapshotStore(path)
+	if err != nil {
+		return err
+	}
+	store.Runs = append(store.Runs, snapshotRun{CapturedAt: now, Items: toSnapshotItems(current)})
+	if len(store.Runs) > maxSnapshotRuns {
+		store.Runs = store.Runs[len(store.Runs)-maxSnapshotRuns:]
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(store, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0o644)
+}
+
+func buildDelta(prev []snapshotItem, current []scoredRepo) deltaReport {
+	report := deltaReport{}
+	if len(prev) == 0 || len(current) == 0 {
+		return report
+	}
+	prevByName := map[string]snapshotItem{}
+	for _, p := range prev {
+		prevByName[p.FullName] = p
+	}
+	for i, c := range current {
+		old, ok := prevByName[c.FullName]
+		if !ok {
+			report.NewRepos = append(report.NewRepos, c)
+			continue
+		}
+		newRank := i + 1
+		if old.Rank != newRank {
+			report.Moves = append(report.Moves, rankMove{
+				FullName:   c.FullName,
+				FromRank:   old.Rank,
+				ToRank:     newRank,
+				DeltaRank:  old.Rank - newRank,
+				DeltaStars: c.StargazersCount - old.Stars,
+			})
+		}
+	}
+	sort.Slice(report.Moves, func(i, j int) bool {
+		if report.Moves[i].DeltaRank == report.Moves[j].DeltaRank {
+			return report.Moves[i].ToRank < report.Moves[j].ToRank
+		}
+		return report.Moves[i].DeltaRank > report.Moves[j].DeltaRank
+	})
+	return report
+}
+
+func printDelta(w io.Writer, report deltaReport) {
+	if len(report.NewRepos) == 0 && len(report.Moves) == 0 {
+		fmt.Fprintln(w, "\nΔ No rank changes since previous scan.")
+		return
+	}
+	fmt.Fprintln(w, "\nΔ Changes since previous scan:")
+	if len(report.NewRepos) > 0 {
+		fmt.Fprintln(w, "  New repos:")
+		for _, r := range report.NewRepos {
+			fmt.Fprintf(w, "  + %s (%d★)\n", r.FullName, r.StargazersCount)
+		}
+	}
+	if len(report.Moves) > 0 {
+		fmt.Fprintln(w, "  Rank movers:")
+		for _, m := range report.Moves {
+			fmt.Fprintf(w, "  • %s %d→%d (%+d rank, %+d★)\n", m.FullName, m.FromRank, m.ToRank, m.DeltaRank, m.DeltaStars)
+		}
+	}
 }

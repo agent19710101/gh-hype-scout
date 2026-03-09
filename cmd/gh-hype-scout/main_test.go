@@ -269,3 +269,54 @@ func TestPrintTableGolden(t *testing.T) {
 		t.Fatalf("table output mismatch\n--- got ---\n%s\n--- want ---\n%s", b.String(), string(want))
 	}
 }
+
+func TestSnapshotStoreCorruptIsNonFatal(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "snapshots.json")
+	if err := os.WriteFile(path, []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("write corrupt snapshot: %v", err)
+	}
+	store, err := loadSnapshotStore(path)
+	if err != nil {
+		t.Fatalf("loadSnapshotStore returned error for corrupt file: %v", err)
+	}
+	if len(store.Runs) != 0 {
+		t.Fatalf("expected empty store for corrupt snapshot, got %d runs", len(store.Runs))
+	}
+}
+
+func TestSnapshotStoreRetention(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "snapshots.json")
+	for i := 0; i < maxSnapshotRuns+7; i++ {
+		in := []scoredRepo{{repo: repo{FullName: "org/a", StargazersCount: i + 1}}}
+		if err := appendSnapshot(path, in, time.Unix(int64(i), 0).UTC()); err != nil {
+			t.Fatalf("appendSnapshot: %v", err)
+		}
+	}
+	store, err := loadSnapshotStore(path)
+	if err != nil {
+		t.Fatalf("loadSnapshotStore: %v", err)
+	}
+	if len(store.Runs) != maxSnapshotRuns {
+		t.Fatalf("expected %d retained runs, got %d", maxSnapshotRuns, len(store.Runs))
+	}
+}
+
+func TestBuildDelta(t *testing.T) {
+	prev := []snapshotItem{{FullName: "org/a", Stars: 100, Rank: 2}, {FullName: "org/b", Stars: 90, Rank: 1}}
+	cur := []scoredRepo{
+		{repo: repo{FullName: "org/a", StargazersCount: 110}},
+		{repo: repo{FullName: "org/c", StargazersCount: 50}},
+	}
+	report := buildDelta(prev, cur)
+	if len(report.NewRepos) != 1 || report.NewRepos[0].FullName != "org/c" {
+		t.Fatalf("expected org/c as new repo, got %#v", report.NewRepos)
+	}
+	if len(report.Moves) != 1 || report.Moves[0].FullName != "org/a" {
+		t.Fatalf("expected one move for org/a, got %#v", report.Moves)
+	}
+	if report.Moves[0].DeltaStars != 10 {
+		t.Fatalf("expected delta stars 10, got %d", report.Moves[0].DeltaStars)
+	}
+}

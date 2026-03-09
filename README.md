@@ -76,6 +76,9 @@ gh-hype-scout --sort hot --score-preset fresh
 # tune table description width
 gh-hype-scout --desc-width 80
 
+# watch mode with periodic delta output (every 2 minutes)
+gh-hype-scout --watch --interval 120
+
 # JSON output for automation
 gh-hype-scout --json
 ```
@@ -87,6 +90,12 @@ gh-hype-scout --json
 - `~/.config/gh-hype-scout/config.yaml`
 
 Override with `--config /path/to/config.yaml`.
+
+Snapshot history is stored by default at:
+
+- `~/.cache/gh-hype-scout/snapshots.json`
+
+Override with `--snapshot-path /path/to/snapshots.json`.
 
 Use [`config.example.yaml`](./config.example.yaml) as a starting point.
 

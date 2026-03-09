@@ -8,6 +8,9 @@ sort: hot
 score_preset: hot
 desc_width: 56
 themes: true
+watch: false
+interval_seconds: 300
+# snapshot_path: /home/you/.cache/gh-hype-scout/snapshots.json
 presets:
   - cli
   - devtools
