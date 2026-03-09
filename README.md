@@ -12,7 +12,7 @@ GitHub Trending is useful but noisy and less configurable for focused discovery.
 
 - Current version: v0 (actively iterating)
 - Works today for terminal scanning + JSON export
-- Priorities: better signal quality, richer filters, stronger tests
+- Priorities: rate-limit UX, richer ranking signals, stronger output ergonomics
 
 ## Install
 
@@ -49,6 +49,9 @@ gh-hype-scout -n 25
 
 # filter out smaller repos
 gh-hype-scout --min-stars 500
+
+# focus on mature-but-still-fresh repos
+gh-hype-scout --min-age-days 7 --max-age-days 45
 
 # include category/theme summary
 gh-hype-scout --themes

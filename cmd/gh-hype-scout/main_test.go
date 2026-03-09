@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -44,6 +45,50 @@ func TestScoreSortsDescendingByHotScore(t *testing.T) {
 	}
 	if out[0].FullName != "b/fast" {
 		t.Fatalf("expected fastest repo first, got %s", out[0].FullName)
+	}
+}
+
+func TestValidateAgeFlags(t *testing.T) {
+	tests := []struct {
+		name    string
+		minAge  int
+		maxAge  int
+		wantErr bool
+	}{
+		{name: "valid disabled", minAge: 0, maxAge: 0, wantErr: false},
+		{name: "valid range", minAge: 7, maxAge: 30, wantErr: false},
+		{name: "negative min", minAge: -1, maxAge: 0, wantErr: true},
+		{name: "min greater than max", minAge: 31, maxAge: 30, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAgeFlags(tt.minAge, tt.maxAge)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("validateAgeFlags() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestFilterByAge(t *testing.T) {
+	in := []scoredRepo{
+		{repo: repo{FullName: "a/new"}, AgeDays: 2},
+		{repo: repo{FullName: "b/mid"}, AgeDays: 10},
+		{repo: repo{FullName: "c/old"}, AgeDays: 40},
+	}
+
+	out := filterByAge(append([]scoredRepo(nil), in...), 7, 30)
+	if len(out) != 1 || out[0].FullName != "b/mid" {
+		t.Fatalf("unexpected filtered result: %#v", out)
+	}
+}
+
+func TestGithubRateLimitHint(t *testing.T) {
+	resp := &http.Response{StatusCode: http.StatusTooManyRequests, Header: http.Header{"Retry-After": []string{"42"}}}
+	hint := githubRateLimitHint(resp)
+	if !strings.Contains(hint, "retry after 42s") {
+		t.Fatalf("expected retry-after hint, got %q", hint)
 	}
 }
 

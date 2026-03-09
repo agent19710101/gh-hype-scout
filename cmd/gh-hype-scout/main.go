@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -44,13 +45,21 @@ func main() {
 	var showThemes bool
 	var minStars int
 	var sinceDays int
+	var minAgeDays int
+	var maxAgeDays int
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
 	flag.BoolVar(&showThemes, "themes", false, "Print theme distribution summary")
 	flag.IntVar(&minStars, "min-stars", 0, "Hide repos with stars below this threshold")
 	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q)")
+	flag.IntVar(&minAgeDays, "min-age-days", 0, "Hide repos younger than this age in days")
+	flag.IntVar(&maxAgeDays, "max-age-days", 0, "Hide repos older than this age in days")
 	flag.Parse()
+
+	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
+		log.Fatal(err)
+	}
 
 	if len(queries) == 0 {
 		queries = defaultQueries(sinceDays, time.Now().UTC())
@@ -75,6 +84,7 @@ func main() {
 		}
 		scored = filtered
 	}
+	scored = filterByAge(scored, minAgeDays, maxAgeDays)
 	if len(scored) == 0 {
 		log.Fatal("no repositories matched filters")
 	}
@@ -162,7 +172,8 @@ func search(client *http.Client, q string) ([]repo, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("github api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		rateHint := githubRateLimitHint(resp)
+		return nil, fmt.Errorf("github api status %d: %s%s", resp.StatusCode, strings.TrimSpace(string(body)), rateHint)
 	}
 
 	var sr searchResponse
@@ -170,6 +181,30 @@ func search(client *http.Client, q string) ([]repo, error) {
 		return nil, err
 	}
 	return sr.Items, nil
+}
+
+func githubRateLimitHint(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return ""
+	}
+
+	if v := strings.TrimSpace(resp.Header.Get("Retry-After")); v != "" {
+		if seconds, err := strconv.Atoi(v); err == nil && seconds > 0 {
+			return fmt.Sprintf(" (rate limit hit; retry after %ds)", seconds)
+		}
+	}
+	if v := strings.TrimSpace(resp.Header.Get("X-RateLimit-Reset")); v != "" {
+		if ts, err := strconv.ParseInt(v, 10, 64); err == nil {
+			wait := time.Until(time.Unix(ts, 0)).Round(time.Second)
+			if wait > 0 {
+				return fmt.Sprintf(" (rate limit hit; retry in %s)", wait)
+			}
+		}
+	}
+	return " (possible rate limit hit; provide GITHUB_TOKEN for higher limits)"
 }
 
 func score(in []repo) []scoredRepo {
@@ -196,6 +231,33 @@ func score(in []repo) []scoredRepo {
 		}
 		return out[i].HotScore > out[j].HotScore
 	})
+	return out
+}
+
+func validateAgeFlags(minAgeDays, maxAgeDays int) error {
+	if minAgeDays < 0 || maxAgeDays < 0 {
+		return fmt.Errorf("age filters must be >= 0")
+	}
+	if maxAgeDays > 0 && minAgeDays > maxAgeDays {
+		return fmt.Errorf("min-age-days (%d) cannot be greater than max-age-days (%d)", minAgeDays, maxAgeDays)
+	}
+	return nil
+}
+
+func filterByAge(in []scoredRepo, minAgeDays, maxAgeDays int) []scoredRepo {
+	if minAgeDays == 0 && maxAgeDays == 0 {
+		return in
+	}
+	out := in[:0]
+	for _, r := range in {
+		if minAgeDays > 0 && r.AgeDays < float64(minAgeDays) {
+			continue
+		}
+		if maxAgeDays > 0 && r.AgeDays > float64(maxAgeDays) {
+			continue
+		}
+		out = append(out, r)
+	}
 	return out
 }
 

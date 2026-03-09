@@ -2,9 +2,9 @@
 
 ## Near-term (v0.x)
 
-- [ ] Add `--min-age-days` / `--max-age-days` filters to tune freshness.
+- [x] Add `--min-age-days` / `--max-age-days` filters to tune freshness.
 - [ ] Add optional description column truncation for richer table UX.
-- [ ] Add rate-limit aware messaging when GitHub API returns 403/429.
+- [x] Add rate-limit aware messaging when GitHub API returns 403/429.
 - [ ] Add tests for query merging behavior (`fetchAndMerge` dedupe semantics).
 - [ ] Add golden test for table output format stability.
 
