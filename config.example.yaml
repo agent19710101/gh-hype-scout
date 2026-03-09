@@ -11,6 +11,7 @@ themes: true
 watch: false
 interval_seconds: 300
 # snapshot_path: /home/you/.cache/gh-hype-scout/snapshots.json
+# watch_jsonl: /home/you/.cache/gh-hype-scout/watch-events.jsonl
 presets:
   - cli
   - devtools

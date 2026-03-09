@@ -64,6 +64,7 @@ type appConfig struct {
 	Watch           bool     `yaml:"watch"`
 	IntervalSeconds int      `yaml:"interval_seconds"`
 	SnapshotPath    string   `yaml:"snapshot_path"`
+	WatchJSONL      string   `yaml:"watch_jsonl"`
 }
 
 type scoreConfig struct {
@@ -84,6 +85,7 @@ type runConfig struct {
 	Watch        bool
 	Interval     time.Duration
 	SnapshotPath string
+	WatchJSONL   string
 }
 
 type snapshotItem struct {
@@ -142,6 +144,7 @@ func parseAndBuildConfig() runConfig {
 	var watch bool
 	var intervalSeconds int
 	var snapshotPath string
+	var watchJSONL string
 
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.Var(&presets, "preset", "Built-in query preset (repeatable): oss, agents, cli, tui, devtools")
@@ -159,6 +162,7 @@ func parseAndBuildConfig() runConfig {
 	flag.BoolVar(&watch, "watch", false, "Run continuously and show deltas between scans")
 	flag.IntVar(&intervalSeconds, "interval", defaultIntervalSec, "Watch interval in seconds")
 	flag.StringVar(&snapshotPath, "snapshot-path", defaultSnapshotPath(), "Snapshot store path")
+	flag.StringVar(&watchJSONL, "watch-jsonl", "", "Append watch delta events as JSONL to this path")
 	flag.Parse()
 
 	setFlags := map[string]bool{}
@@ -168,7 +172,7 @@ func parseAndBuildConfig() runConfig {
 	if err != nil {
 		log.Fatal(err)
 	}
-	applyConfigIfUnset(fileCfg, setFlags, &queries, &presets, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth, &watch, &intervalSeconds, &snapshotPath)
+	applyConfigIfUnset(fileCfg, setFlags, &queries, &presets, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth, &watch, &intervalSeconds, &snapshotPath, &watchJSONL)
 
 	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
 		log.Fatal(err)
@@ -205,6 +209,7 @@ func parseAndBuildConfig() runConfig {
 		Watch:        watch,
 		Interval:     time.Duration(intervalSeconds) * time.Second,
 		SnapshotPath: snapshotPath,
+		WatchJSONL:   watchJSONL,
 	}
 }
 
@@ -221,6 +226,9 @@ func runWatch(cfg runConfig) {
 		report := buildDelta(prev, scored)
 		if len(prev) > 0 {
 			printDelta(os.Stdout, report)
+			if err := appendDeltaJSONL(cfg.WatchJSONL, now, report); err != nil {
+				log.Printf("watch jsonl warning: %v", err)
+			}
 		}
 		if err := appendSnapshot(cfg.SnapshotPath, scored, now); err != nil {
 			log.Printf("snapshot warning: %v", err)
@@ -371,7 +379,7 @@ func loadConfig(path string) (appConfig, error) {
 	return cfg, nil
 }
 
-func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, presets *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int, watch *bool, intervalSeconds *int, snapshotPath *string) {
+func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, presets *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int, watch *bool, intervalSeconds *int, snapshotPath *string, watchJSONL *string) {
 	if !setFlags["q"] && len(cfg.Queries) > 0 {
 		*queries = append((*queries)[:0], cfg.Queries...)
 	}
@@ -416,6 +424,9 @@ func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiF
 	}
 	if !setFlags["snapshot-path"] && strings.TrimSpace(cfg.SnapshotPath) != "" {
 		*snapshotPath = cfg.SnapshotPath
+	}
+	if !setFlags["watch-jsonl"] && strings.TrimSpace(cfg.WatchJSONL) != "" {
+		*watchJSONL = cfg.WatchJSONL
 	}
 }
 
@@ -681,6 +692,49 @@ func printThemeSummary(in []scoredRepo) {
 		fmt.Fprintf(tw, "%s\t%d\t%.1f\n", k, s.Count, avg)
 	}
 	tw.Flush()
+}
+
+type deltaEvent struct {
+	CapturedAt string        `json:"captured_at"`
+	NewRepos   []string      `json:"new_repos"`
+	RankMoves  []rankMoveLog `json:"rank_moves"`
+}
+
+type rankMoveLog struct {
+	Repo       string `json:"repo"`
+	FromRank   int    `json:"from_rank"`
+	ToRank     int    `json:"to_rank"`
+	DeltaRank  int    `json:"delta_rank"`
+	DeltaStars int    `json:"delta_stars"`
+}
+
+func appendDeltaJSONL(path string, now time.Time, report deltaReport) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	e := deltaEvent{CapturedAt: now.Format(time.RFC3339)}
+	for _, r := range report.NewRepos {
+		e.NewRepos = append(e.NewRepos, r.FullName)
+	}
+	for _, m := range report.Moves {
+		e.RankMoves = append(e.RankMoves, rankMoveLog{Repo: m.FullName, FromRank: m.FromRank, ToRank: m.ToRank, DeltaRank: m.DeltaRank, DeltaStars: m.DeltaStars})
+	}
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := f.Write(append(b, '\n')); err != nil {
+		return err
+	}
+	return nil
 }
 
 func toSnapshotItems(in []scoredRepo) []snapshotItem {

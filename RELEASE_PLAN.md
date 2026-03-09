@@ -1,6 +1,6 @@
 # Release Plan (v0.x)
 
-Status: ✅ Completed through **v0.4.0**
+Status: ✅ Completed through **v0.5.0**
 
 ## v0.2.0 — Output Reliability + UX
 
@@ -25,6 +25,23 @@ Goal: make the CLI easier to adopt and run continuously.
 - [x] Add config file support (`~/.config/gh-hype-scout/config.yaml`).
 - [x] Add GitHub Actions release pipeline (tag build + checks).
 - [x] Add goreleaser for multi-platform binaries.
+
+## v0.5.0 — Continuous Trend Tracking
+
+Goal: move from one-shot scouting to iterative tracking.
+
+- [x] Add query presets (`--preset`) and config support.
+- [x] Add snapshot persistence and retention policy.
+- [x] Add watch mode (`--watch`, `--interval`) with delta output.
+
+## v0.6.0 — Open Ideas to Productized Features
+
+Goal: turn open ideas into automation-ready workflows.
+
+- [x] Add watch JSONL sink (`--watch-jsonl`).
+- [ ] Add acceleration scoring based on snapshot history.
+- [ ] Add preset customization/overrides from config.
+- [ ] Add optional webhook sink for watch delta events.
 
 ## Release quality gate (applies to each v0.x)
 

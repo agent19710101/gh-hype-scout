@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.4.0)
+## Shipped (through v0.5.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)
@@ -9,15 +9,19 @@
 - ✅ Sorting modes: `hot`, `stars`, `stars-day`, `age`
 - ✅ Config file support (`~/.config/gh-hype-scout/config.yaml`)
 - ✅ Release automation (GitHub Actions + goreleaser)
+- ✅ Query presets (`--preset oss|agents|cli|tui|devtools`)
+- ✅ Snapshot persistence (`~/.cache/gh-hype-scout/snapshots.json`) with retention
+- ✅ Watch mode with periodic delta output (`--watch`, `--interval`)
 
-## Next (v0.5.0)
+## Next (v0.6.0)
 
-- [ ] Add saved query presets (`--preset oss`, `--preset agents`, etc.)
-- [ ] Persist lightweight snapshots for historical trend comparisons
-- [ ] Add watchlist mode for periodic scans and delta output
-
-## Open ideas (post-v0.5.0)
-
+- [x] Add watchlist output sink: JSONL (`--watch-jsonl`)
 - [ ] Add acceleration scoring from snapshot history (week-over-week trend signal)
 - [ ] Add preset customization via config file overrides
-- [ ] Add watchlist output sinks (JSONL file and optional webhook)
+- [ ] Optional webhook sink for watch delta events
+
+## Open ideas (post-v0.6.0)
+
+- [ ] Add snapshot diff subcommand for offline comparisons
+- [ ] Add richer momentum metrics (star velocity trend, decay curves)
+- [ ] Add machine-readable watch summaries with schema versioning

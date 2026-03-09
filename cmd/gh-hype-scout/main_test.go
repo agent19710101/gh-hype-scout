@@ -303,6 +303,26 @@ func TestSnapshotStoreRetention(t *testing.T) {
 	}
 }
 
+func TestAppendDeltaJSONL(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "watch.jsonl")
+	report := deltaReport{
+		NewRepos: []scoredRepo{{repo: repo{FullName: "org/new"}}},
+		Moves:    []rankMove{{FullName: "org/a", FromRank: 3, ToRank: 1, DeltaRank: 2, DeltaStars: 5}},
+	}
+	if err := appendDeltaJSONL(path, time.Date(2026, 3, 9, 12, 0, 0, 0, time.UTC), report); err != nil {
+		t.Fatalf("appendDeltaJSONL: %v", err)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read jsonl: %v", err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "org/new") || !strings.Contains(s, "org/a") {
+		t.Fatalf("expected repos in jsonl, got %s", s)
+	}
+}
+
 func TestBuildDelta(t *testing.T) {
 	prev := []snapshotItem{{FullName: "org/a", Stars: 100, Rank: 2}, {FullName: "org/b", Stars: 90, Rank: 1}}
 	cur := []scoredRepo{
