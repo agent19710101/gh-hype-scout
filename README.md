@@ -10,9 +10,9 @@ GitHub Trending is useful but noisy and less configurable for focused discovery.
 
 ## Status
 
-- Current version: v0 (actively iterating)
-- Works today for terminal scanning + JSON export
-- Priorities: rate-limit UX, richer ranking signals, stronger output ergonomics
+- Current version: **v0.0.6**
+- Works today for terminal scanning + JSON export + watch automation sinks
+- Priorities: deeper momentum analytics, offline snapshot diffing, webhook hardening
 
 ## Install
 
@@ -147,6 +147,7 @@ See [ROADMAP.md](./ROADMAP.md) and the scoped [RELEASE_PLAN.md](./RELEASE_PLAN.m
 - CI runs `go test ./...` on PRs and pushes.
 - Tagging `v*` triggers goreleaser via GitHub Actions.
 - Artifacts include Linux/macOS/Windows binaries and checksums.
+- Latest planned cut from this branch: **v0.0.6**.
 
 ## License
 
