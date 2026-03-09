@@ -1,6 +1,6 @@
 # Release Plan (v0.x)
 
-Status: ✅ Completed through **v0.5.0**
+Status: ✅ Completed through **v0.6.0**
 
 ## v0.2.0 — Output Reliability + UX
 
@@ -39,9 +39,19 @@ Goal: move from one-shot scouting to iterative tracking.
 Goal: turn open ideas into automation-ready workflows.
 
 - [x] Add watch JSONL sink (`--watch-jsonl`).
-- [ ] Add acceleration scoring based on snapshot history.
-- [ ] Add preset customization/overrides from config.
-- [ ] Add optional webhook sink for watch delta events.
+- [x] Add acceleration scoring based on snapshot history (`--sort accel`).
+- [x] Add preset customization/overrides from config (`preset_overrides`).
+- [x] Add optional webhook sink for watch delta events (`--watch-webhook`).
+- [x] Refactor to modular internal package structure (thin main).
+
+## v0.7.0 — Analysis + Automation Hardening
+
+Goal: strengthen trend analysis depth and downstream integrations.
+
+- [ ] Add snapshot diff subcommand for offline comparisons.
+- [ ] Add richer momentum metrics and decay-aware ranking.
+- [ ] Add schema-versioned machine-readable watch summaries.
+- [ ] Add webhook delivery auth/signing options.
 
 ## Release quality gate (applies to each v0.x)
 

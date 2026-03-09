@@ -8,7 +8,11 @@ import (
 )
 
 func Resolve(custom, presets []string, sinceDays int, now time.Time) ([]string, error) {
-	p, err := ExpandPresets(presets, sinceDays, now)
+	return ResolveWithOverrides(custom, presets, nil, sinceDays, now)
+}
+
+func ResolveWithOverrides(custom, presets []string, overrides map[string][]string, sinceDays int, now time.Time) ([]string, error) {
+	p, err := ExpandPresetsWithOverrides(presets, overrides, sinceDays, now)
 	if err != nil {
 		return nil, err
 	}
@@ -21,10 +25,17 @@ func Resolve(custom, presets []string, sinceDays int, now time.Time) ([]string, 
 }
 
 func ExpandPresets(presets []string, sinceDays int, now time.Time) ([]string, error) {
+	return ExpandPresetsWithOverrides(presets, nil, sinceDays, now)
+}
+
+func ExpandPresetsWithOverrides(presets []string, overrides map[string][]string, sinceDays int, now time.Time) ([]string, error) {
 	if len(presets) == 0 {
 		return nil, nil
 	}
-	catalog := Catalog(sinceDays, now)
+	catalog, err := CatalogWithOverrides(sinceDays, now, overrides)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]string, 0)
 	seen := map[string]struct{}{}
 	for _, p := range presets {
@@ -58,17 +69,41 @@ func Default(sinceDays int, now time.Time) []string {
 }
 
 func Catalog(sinceDays int, now time.Time) map[string][]string {
+	c, _ := CatalogWithOverrides(sinceDays, now, nil)
+	return c
+}
+
+func CatalogWithOverrides(sinceDays int, now time.Time, overrides map[string][]string) (map[string][]string, error) {
 	if sinceDays < 1 {
 		sinceDays = 1
 	}
 	since := now.AddDate(0, 0, -sinceDays).Format("2006-01-02")
-	return map[string][]string{
+	catalog := map[string][]string{
 		"oss":      {"stars:>50 created:>" + since},
 		"agents":   {"(agent OR mcp) created:>" + since + " stars:>80"},
 		"cli":      {"topic:cli created:>" + since + " stars:>40"},
 		"tui":      {"topic:tui created:>" + since + " stars:>20"},
 		"devtools": {"(developer tools) created:>" + since + " stars:>50"},
 	}
+	for k, v := range overrides {
+		name := strings.ToLower(strings.TrimSpace(k))
+		if name == "" {
+			return nil, fmt.Errorf("preset override key cannot be empty")
+		}
+		if len(v) == 0 {
+			return nil, fmt.Errorf("preset override %q must contain at least one query", k)
+		}
+		clean := make([]string, 0, len(v))
+		for _, q := range v {
+			q = strings.TrimSpace(q)
+			if q == "" {
+				return nil, fmt.Errorf("preset override %q contains empty query", k)
+			}
+			clean = append(clean, q)
+		}
+		catalog[name] = clean
+	}
+	return catalog, nil
 }
 
 func Names(c map[string][]string) []string {

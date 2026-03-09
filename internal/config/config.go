@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,41 +19,45 @@ const (
 )
 
 type File struct {
-	Queries         []string `yaml:"queries"`
-	Presets         []string `yaml:"presets"`
-	Limit           int      `yaml:"limit"`
-	JSON            bool     `yaml:"json"`
-	Themes          bool     `yaml:"themes"`
-	MinStars        int      `yaml:"min_stars"`
-	SinceDays       int      `yaml:"since_days"`
-	MinAgeDays      int      `yaml:"min_age_days"`
-	MaxAgeDays      int      `yaml:"max_age_days"`
-	Sort            string   `yaml:"sort"`
-	ScorePreset     string   `yaml:"score_preset"`
-	DescWidth       int      `yaml:"desc_width"`
-	Watch           bool     `yaml:"watch"`
-	IntervalSeconds int      `yaml:"interval_seconds"`
-	SnapshotPath    string   `yaml:"snapshot_path"`
-	WatchJSONL      string   `yaml:"watch_jsonl"`
+	Queries         []string            `yaml:"queries"`
+	Presets         []string            `yaml:"presets"`
+	PresetOverrides map[string][]string `yaml:"preset_overrides"`
+	Limit           int                 `yaml:"limit"`
+	JSON            bool                `yaml:"json"`
+	Themes          bool                `yaml:"themes"`
+	MinStars        int                 `yaml:"min_stars"`
+	SinceDays       int                 `yaml:"since_days"`
+	MinAgeDays      int                 `yaml:"min_age_days"`
+	MaxAgeDays      int                 `yaml:"max_age_days"`
+	Sort            string              `yaml:"sort"`
+	ScorePreset     string              `yaml:"score_preset"`
+	DescWidth       int                 `yaml:"desc_width"`
+	Watch           bool                `yaml:"watch"`
+	IntervalSeconds int                 `yaml:"interval_seconds"`
+	SnapshotPath    string              `yaml:"snapshot_path"`
+	WatchJSONL      string              `yaml:"watch_jsonl"`
+	WatchWebhook    string              `yaml:"watch_webhook"`
 }
 
 type Run struct {
-	Queries      []string
-	Presets      []string
-	Limit        int
-	JSON         bool
-	Themes       bool
-	MinStars     int
-	SinceDays    int
-	MinAgeDays   int
-	MaxAgeDays   int
-	Sort         string
-	ScorePreset  string
-	DescWidth    int
-	Watch        bool
-	Interval     time.Duration
-	SnapshotPath string
-	WatchJSONL   string
+	Queries         []string
+	Presets         []string
+	PresetOverrides map[string][]string
+	Limit           int
+	JSON            bool
+	Themes          bool
+	MinStars        int
+	SinceDays       int
+	MinAgeDays      int
+	MaxAgeDays      int
+	Sort            string
+	ScorePreset     string
+	DescWidth       int
+	Watch           bool
+	Interval        time.Duration
+	SnapshotPath    string
+	WatchJSONL      string
+	WatchWebhook    string
 }
 
 func DefaultConfigPath() string {
@@ -92,6 +97,7 @@ func Parse() (Run, error) {
 	flag.IntVar(&intervalSeconds, "interval", DefaultIntervalSec, "Watch interval in seconds")
 	flag.StringVar(&cfg.SnapshotPath, "snapshot-path", DefaultSnapshotPath(), "Snapshot store path")
 	flag.StringVar(&cfg.WatchJSONL, "watch-jsonl", "", "Append watch delta events as JSONL to this path")
+	flag.StringVar(&cfg.WatchWebhook, "watch-webhook", "", "POST watch delta events to this webhook URL")
 	flag.Parse()
 
 	set := map[string]bool{}
@@ -141,6 +147,12 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 	if !set["preset"] && len(fc.Presets) > 0 {
 		cfg.Presets = append([]string{}, fc.Presets...)
 	}
+	if len(fc.PresetOverrides) > 0 {
+		cfg.PresetOverrides = make(map[string][]string, len(fc.PresetOverrides))
+		for k, v := range fc.PresetOverrides {
+			cfg.PresetOverrides[k] = append([]string{}, v...)
+		}
+	}
 	if !set["n"] && fc.Limit > 0 {
 		cfg.Limit = fc.Limit
 	}
@@ -180,6 +192,9 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 	if !set["watch-jsonl"] && strings.TrimSpace(fc.WatchJSONL) != "" {
 		cfg.WatchJSONL = fc.WatchJSONL
 	}
+	if !set["watch-webhook"] && strings.TrimSpace(fc.WatchWebhook) != "" {
+		cfg.WatchWebhook = fc.WatchWebhook
+	}
 }
 
 func validate(cfg Run, intervalSeconds int) error {
@@ -197,6 +212,12 @@ func validate(cfg Run, intervalSeconds int) error {
 	}
 	if cfg.Watch && cfg.JSON {
 		return fmt.Errorf("-watch cannot be combined with -json")
+	}
+	if strings.TrimSpace(cfg.WatchWebhook) != "" {
+		u, err := url.Parse(cfg.WatchWebhook)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return fmt.Errorf("invalid -watch-webhook URL")
+		}
 	}
 	return nil
 }

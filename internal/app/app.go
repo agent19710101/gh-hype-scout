@@ -22,7 +22,7 @@ func (r Runner) Run(cfg config.Run) error {
 	if err := rank.Validate(rank.Config{Sort: cfg.Sort, ScorePreset: cfg.ScorePreset}); err != nil {
 		return err
 	}
-	queries, err := query.Resolve(cfg.Queries, cfg.Presets, cfg.SinceDays, time.Now().UTC())
+	queries, err := query.ResolveWithOverrides(cfg.Queries, cfg.Presets, cfg.PresetOverrides, cfg.SinceDays, time.Now().UTC())
 	if err != nil {
 		return err
 	}
@@ -131,6 +131,11 @@ func (r Runner) runWatch(cfg config.Run, queries []string, client *githubapi.Cli
 		if len(prev) > 0 {
 			output.PrintDelta(r.Out, report)
 			_ = output.AppendDeltaJSONL(cfg.WatchJSONL, now, report)
+			reportCopy := report
+			webhook := cfg.WatchWebhook
+			go func(ts time.Time) {
+				_ = output.SendDeltaWebhook(webhook, ts, reportCopy)
+			}(now)
 		}
 		_ = snapshot.Append(cfg.SnapshotPath, scored, now)
 		prev = snapshot.FromRanked(scored)

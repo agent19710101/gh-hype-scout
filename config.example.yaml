@@ -12,8 +12,14 @@ watch: false
 interval_seconds: 300
 # snapshot_path: /home/you/.cache/gh-hype-scout/snapshots.json
 # watch_jsonl: /home/you/.cache/gh-hype-scout/watch-events.jsonl
+# watch_webhook: https://example.com/gh-hype-scout-delta
 presets:
   - cli
   - devtools
+preset_overrides:
+  cli:
+    - "language:go stars:>80 created:>2026-01-01"
+  security:
+    - "topic:security stars:>40 created:>2026-01-01"
 queries:
   - "language:go stars:>80 created:>2026-01-01"

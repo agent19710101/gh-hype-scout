@@ -1,9 +1,11 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -118,29 +120,36 @@ func PrintDelta(w io.Writer, report DeltaReport) {
 	}
 }
 
-func AppendDeltaJSONL(path string, now time.Time, report DeltaReport) error {
-	if strings.TrimSpace(path) == "" {
-		return nil
-	}
-	type move struct {
-		Repo       string `json:"repo"`
-		FromRank   int    `json:"from_rank"`
-		ToRank     int    `json:"to_rank"`
-		DeltaRank  int    `json:"delta_rank"`
-		DeltaStars int    `json:"delta_stars"`
-	}
-	e := struct {
-		CapturedAt string   `json:"captured_at"`
-		NewRepos   []string `json:"new_repos"`
-		RankMoves  []move   `json:"rank_moves"`
-	}{CapturedAt: now.Format(time.RFC3339)}
+type move struct {
+	Repo       string `json:"repo"`
+	FromRank   int    `json:"from_rank"`
+	ToRank     int    `json:"to_rank"`
+	DeltaRank  int    `json:"delta_rank"`
+	DeltaStars int    `json:"delta_stars"`
+}
+
+type deltaEvent struct {
+	CapturedAt string   `json:"captured_at"`
+	NewRepos   []string `json:"new_repos"`
+	RankMoves  []move   `json:"rank_moves"`
+}
+
+func toDeltaEvent(now time.Time, report DeltaReport) deltaEvent {
+	e := deltaEvent{CapturedAt: now.Format(time.RFC3339)}
 	for _, r := range report.NewRepos {
 		e.NewRepos = append(e.NewRepos, r.FullName)
 	}
 	for _, m := range report.Moves {
 		e.RankMoves = append(e.RankMoves, move{Repo: m.FullName, FromRank: m.FromRank, ToRank: m.ToRank, DeltaRank: m.DeltaRank, DeltaStars: m.DeltaStars})
 	}
-	b, err := json.Marshal(e)
+	return e
+}
+
+func AppendDeltaJSONL(path string, now time.Time, report DeltaReport) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	b, err := json.Marshal(toDeltaEvent(now, report))
 	if err != nil {
 		return err
 	}
@@ -154,6 +163,49 @@ func AppendDeltaJSONL(path string, now time.Time, report DeltaReport) error {
 	defer f.Close()
 	_, err = f.Write(append(b, '\n'))
 	return err
+}
+
+func SendDeltaWebhook(webhookURL string, now time.Time, report DeltaReport) error {
+	client := &http.Client{Timeout: 4 * time.Second}
+	return SendDeltaWebhookWithClient(client, webhookURL, now, report)
+}
+
+func SendDeltaWebhookWithClient(client *http.Client, webhookURL string, now time.Time, report DeltaReport) error {
+	if strings.TrimSpace(webhookURL) == "" {
+		return nil
+	}
+	if client == nil {
+		client = &http.Client{Timeout: 4 * time.Second}
+	}
+	payload, err := json.Marshal(toDeltaEvent(now, report))
+	if err != nil {
+		return err
+	}
+	var lastErr error
+	delay := 250 * time.Millisecond
+	for attempt := 0; attempt < 3; attempt++ {
+		req, err := http.NewRequest(http.MethodPost, webhookURL, bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(req)
+		if err == nil && resp != nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			resp.Body.Close()
+			return nil
+		}
+		if err == nil && resp != nil {
+			lastErr = fmt.Errorf("webhook status %d", resp.StatusCode)
+			resp.Body.Close()
+		} else {
+			lastErr = err
+		}
+		if attempt < 2 {
+			time.Sleep(delay)
+			delay *= 2
+		}
+	}
+	return lastErr
 }
 
 func truncate(s string, max int) string {

@@ -83,6 +83,9 @@ gh-hype-scout --watch --interval 120
 # write watch deltas to JSONL for automation
 gh-hype-scout --watch --watch-jsonl ./watch-events.jsonl
 
+# send watch deltas to a webhook sink
+gh-hype-scout --watch --watch-webhook https://example.com/gh-hype-scout-delta
+
 # JSON output for automation
 gh-hype-scout --json
 ```
@@ -104,6 +107,12 @@ Override with `--snapshot-path /path/to/snapshots.json`.
 For watch-mode automation, append delta events to JSONL with:
 
 - `--watch-jsonl /path/to/watch-events.jsonl`
+
+Or POST delta events to an external automation endpoint:
+
+- `--watch-webhook https://example.com/gh-hype-scout-delta`
+
+Preset queries can also be customized in config via `preset_overrides`.
 
 Use [`config.example.yaml`](./config.example.yaml) as a starting point.
 
