@@ -86,7 +86,7 @@ This is intentionally simple and explainable; future versions can include contri
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md).
+See [ROADMAP.md](./ROADMAP.md) and the scoped [RELEASE_PLAN.md](./RELEASE_PLAN.md) for v0.x milestones.
 
 ## License
 
