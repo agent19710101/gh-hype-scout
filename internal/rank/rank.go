@@ -17,17 +17,18 @@ type Config struct {
 
 type Repo struct {
 	githubapi.Repo
-	AgeDays     float64 `json:"age_days"`
-	StarsPerDay float64 `json:"stars_per_day"`
-	HotScore    float64 `json:"hot_score"`
-	Category    string  `json:"category"`
+	AgeDays      float64 `json:"age_days"`
+	StarsPerDay  float64 `json:"stars_per_day"`
+	HotScore     float64 `json:"hot_score"`
+	Acceleration float64 `json:"acceleration"`
+	Category     string  `json:"category"`
 }
 
 func Validate(c Config) error {
 	switch c.Sort {
-	case "hot", "stars-day", "stars", "age":
+	case "hot", "stars-day", "stars", "age", "accel":
 	default:
-		return fmt.Errorf("invalid -sort %q (expected: hot, stars-day, stars, age)", c.Sort)
+		return fmt.Errorf("invalid -sort %q (expected: hot, stars-day, stars, age, accel)", c.Sort)
 	}
 	switch c.ScorePreset {
 	case "hot", "fresh":
@@ -57,6 +58,14 @@ func Score(in []githubapi.Repo, cfg Config) []Repo {
 	}
 	sortScored(out, cfg.Sort)
 	return out
+}
+
+func ApplyAcceleration(in []Repo, accelByRepo map[string]float64) {
+	for i := range in {
+		if v, ok := accelByRepo[in[i].FullName]; ok {
+			in[i].Acceleration = v
+		}
+	}
 }
 
 func Filter(in []Repo, minStars, minAge, maxAge int, limit int) ([]Repo, error) {
@@ -122,6 +131,11 @@ func sortScored(in []Repo, sortBy string) {
 				return in[i].StarsPerDay > in[j].StarsPerDay
 			}
 			return in[i].AgeDays < in[j].AgeDays
+		case "accel":
+			if in[i].Acceleration == in[j].Acceleration {
+				return in[i].HotScore > in[j].HotScore
+			}
+			return in[i].Acceleration > in[j].Acceleration
 		default:
 			if in[i].HotScore == in[j].HotScore {
 				return in[i].StargazersCount > in[j].StargazersCount

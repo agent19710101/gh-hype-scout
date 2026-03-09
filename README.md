@@ -69,6 +69,7 @@ gh-hype-scout --themes
 gh-hype-scout --sort stars-day
 gh-hype-scout --sort stars
 gh-hype-scout --sort age
+gh-hype-scout --sort accel
 
 # freshness-biased scoring (only valid with --sort hot)
 gh-hype-scout --sort hot --score-preset fresh
@@ -124,7 +125,9 @@ For each repo:
 - `starsPerDay = stars / ageDays`
 - `hotScore = starsPerDay * log10(stars+1)`
 
-This is intentionally simple and explainable; future versions can include contributor growth, commit activity, and release cadence.
+This is intentionally simple and explainable.
+
+Acceleration mode (`--sort accel`) uses snapshot history to compare recent star-rate vs baseline star-rate and rank repos by momentum change.
 
 ## Roadmap
 

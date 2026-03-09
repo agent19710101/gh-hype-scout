@@ -83,7 +83,7 @@ func Parse() (Run, error) {
 	flag.IntVar(&cfg.SinceDays, "since-days", 60, "Default query window in days (only used without -q/-preset)")
 	flag.IntVar(&cfg.MinAgeDays, "min-age-days", 0, "Hide repos younger than this age in days")
 	flag.IntVar(&cfg.MaxAgeDays, "max-age-days", 0, "Hide repos older than this age in days")
-	flag.StringVar(&cfg.Sort, "sort", "hot", "Sort results by: hot, stars-day, stars, age")
+	flag.StringVar(&cfg.Sort, "sort", "hot", "Sort results by: hot, stars-day, stars, age, accel")
 	flag.StringVar(&cfg.ScorePreset, "score-preset", "hot", "Score preset for -sort hot: hot, fresh")
 	flag.StringVar(&configPath, "config", DefaultConfigPath(), "Config file path")
 	flag.IntVar(&cfg.DescWidth, "desc-width", DefaultDescWidth, "Description column max width for table output")
