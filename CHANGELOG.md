@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.1 - 2026-03-09
+
+### Fixed
+- Added root `main` package entrypoint so this now works as expected:
+  - `go install github.com/agent19710101/gh-hype-scout@latest`
+- Preserved existing command layout (`cmd/gh-hype-scout`) for source builds.
+
 ## v1.0.0 - 2026-03-09
 
 ### Added
