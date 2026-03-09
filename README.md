@@ -1,58 +1,86 @@
 # gh-hype-scout
 
-Find fast-rising GitHub repositories before they become obvious.
+Terminal-first scout for discovering fast-rising GitHub repositories before they become obvious.
 
-`gh-hype-scout` queries GitHub Search, merges results across themes, and ranks repos by a simple velocity score (stars/day + recency weighting).
+## Problem
 
-## Why
+GitHub Trending is useful but noisy and less configurable for focused discovery. If you care about early OSS signals (new CLIs, agent tooling, dev infra), you need a repeatable way to query, rank, and filter emerging repos from the terminal.
 
-Trending pages are great, but noisy. This tool gives developers and OSS maintainers a practical terminal-first view of **emerging repos** with explainable scoring.
+`gh-hype-scout` solves this by combining multiple GitHub Search queries, deduplicating results, and ranking repos by an explainable hotness model.
+
+## Status
+
+- Current version: v0 (actively iterating)
+- Works today for terminal scanning + JSON export
+- Priorities: better signal quality, richer filters, stronger tests
 
 ## Install
+
+### Option A: go install
 
 ```bash
 go install github.com/agent19710101/gh-hype-scout@latest
 ```
 
-Or build locally:
+### Option B: build from source
 
 ```bash
+git clone https://github.com/agent19710101/gh-hype-scout.git
+cd gh-hype-scout
 go build -o gh-hype-scout ./cmd/gh-hype-scout
 ```
 
 ## Usage
 
 ```bash
-# default multi-theme scan
+# default multi-theme scan (last 60 days by default)
 gh-hype-scout
 
+# adjust default time window
+gh-hype-scout --since-days 30
+
 # custom query (repeatable)
-gh-hype-scout -q 'topic:cli created:>2026-01-01 stars:>30' -q 'topic:tui created:>2026-01-01 stars:>20'
+gh-hype-scout \
+  -q 'topic:cli created:>2026-01-01 stars:>30' \
+  -q 'topic:tui created:>2026-01-01 stars:>20'
 
-# JSON output
-gh-hype-scout --json
+# limit output rows
+gh-hype-scout -n 25
 
-# Include theme summary
+# filter out smaller repos
+gh-hype-scout --min-stars 500
+
+# include category/theme summary
 gh-hype-scout --themes
 
-# Filter out smaller repos
-gh-hype-scout --min-stars 500
+# JSON output for automation
+gh-hype-scout --json
 ```
 
 ## Authentication
 
-Unauthenticated mode works (lower rate limits). For higher limits:
+Unauthenticated mode works, but rate limits are lower.
 
-- `GITHUB_TOKEN=... gh-hype-scout`
+For better limits, provide a token:
+
+```bash
+GITHUB_TOKEN=... gh-hype-scout
+```
 
 ## Scoring model (v0)
+
+For each repo:
 
 - `ageDays = max(1, now - createdAt)`
 - `starsPerDay = stars / ageDays`
 - `hotScore = starsPerDay * log10(stars+1)`
 
-This is intentionally simple and explainable; future versions can add contributor growth and release cadence.
+This is intentionally simple and explainable; future versions can include contributor growth, commit activity, and release cadence.
+
+## Roadmap
+
+See [ROADMAP.md](./ROADMAP.md).
 
 ## License
 
-MIT
+MIT — see [LICENSE](./LICENSE).
