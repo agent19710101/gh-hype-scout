@@ -202,6 +202,55 @@ func TestFetchAndMergeDedupe(t *testing.T) {
 	}
 }
 
+func TestExpandPresets(t *testing.T) {
+	now := time.Date(2026, 3, 9, 1, 30, 0, 0, time.UTC)
+	qs, err := expandPresets([]string{"cli", "agents"}, 30, now)
+	if err != nil {
+		t.Fatalf("expandPresets error: %v", err)
+	}
+	if len(qs) != 2 {
+		t.Fatalf("expected 2 preset queries, got %d", len(qs))
+	}
+	if !strings.Contains(qs[0], "2026-02-07") || !strings.Contains(qs[1], "2026-02-07") {
+		t.Fatalf("expected since date in preset queries, got %#v", qs)
+	}
+}
+
+func TestExpandPresetsUnknown(t *testing.T) {
+	_, err := expandPresets([]string{"nope"}, 30, time.Now().UTC())
+	if err == nil {
+		t.Fatal("expected error for unknown preset")
+	}
+	if !strings.Contains(err.Error(), "unknown -preset") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveQueriesMergesPresetAndCustom(t *testing.T) {
+	now := time.Date(2026, 3, 9, 1, 30, 0, 0, time.UTC)
+	out, err := resolveQueries([]string{"custom:query"}, []string{"cli"}, 30, now)
+	if err != nil {
+		t.Fatalf("resolveQueries error: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("expected 2 queries, got %d", len(out))
+	}
+	if out[1] != "custom:query" {
+		t.Fatalf("expected custom query after presets, got %#v", out)
+	}
+}
+
+func TestResolveQueriesFallsBackToDefault(t *testing.T) {
+	now := time.Date(2026, 3, 9, 1, 30, 0, 0, time.UTC)
+	out, err := resolveQueries(nil, nil, 30, now)
+	if err != nil {
+		t.Fatalf("resolveQueries error: %v", err)
+	}
+	if len(out) != 4 {
+		t.Fatalf("expected default 4 queries, got %d", len(out))
+	}
+}
+
 func TestPrintTableGolden(t *testing.T) {
 	in := []scoredRepo{
 		{repo: repo{FullName: "org/alpha", Description: "A very long description that should be truncated to keep terminal output compact.", StargazersCount: 1200, Language: "Go"}, AgeDays: 12.3, StarsPerDay: 97.6, HotScore: 300.2, Category: "cli"},

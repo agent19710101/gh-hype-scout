@@ -46,6 +46,7 @@ type scoredRepo struct {
 
 type appConfig struct {
 	Queries     []string `yaml:"queries"`
+	Presets     []string `yaml:"presets"`
 	Limit       int      `yaml:"limit"`
 	JSON        bool     `yaml:"json"`
 	Themes      bool     `yaml:"themes"`
@@ -65,6 +66,7 @@ type scoreConfig struct {
 
 func main() {
 	var queries multiFlag
+	var presets multiFlag
 	var limit int
 	var jsonOut bool
 	var showThemes bool
@@ -78,11 +80,12 @@ func main() {
 	var descWidth int
 
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
+	flag.Var(&presets, "preset", "Built-in query preset (repeatable): oss, agents, cli, tui, devtools")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
 	flag.BoolVar(&showThemes, "themes", false, "Print theme distribution summary")
 	flag.IntVar(&minStars, "min-stars", 0, "Hide repos with stars below this threshold")
-	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q)")
+	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q/-preset)")
 	flag.IntVar(&minAgeDays, "min-age-days", 0, "Hide repos younger than this age in days")
 	flag.IntVar(&maxAgeDays, "max-age-days", 0, "Hide repos older than this age in days")
 	flag.StringVar(&sortBy, "sort", "hot", "Sort results by: hot, stars-day, stars, age")
@@ -100,7 +103,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	applyConfigIfUnset(cfg, setFlags, &queries, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth)
+	applyConfigIfUnset(cfg, setFlags, &queries, &presets, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth)
 
 	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
 		log.Fatal(err)
@@ -113,12 +116,13 @@ func main() {
 		log.Fatal("-desc-width must be >= 8")
 	}
 
-	if len(queries) == 0 {
-		queries = defaultQueries(sinceDays, time.Now().UTC())
+	resolvedQueries, err := resolveQueries([]string(queries), []string(presets), sinceDays, time.Now().UTC())
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	client := &http.Client{Timeout: 20 * time.Second}
-	all, err := fetchAndMerge(client, queries)
+	all, err := fetchAndMerge(client, resolvedQueries)
 	if err != nil {
 		log.Fatalf("fetch trends: %v", err)
 	}
@@ -161,6 +165,77 @@ func main() {
 	}
 }
 
+func resolveQueries(custom []string, presets []string, sinceDays int, now time.Time) ([]string, error) {
+	presetQueries, err := expandPresets(presets, sinceDays, now)
+	if err != nil {
+		return nil, err
+	}
+	if len(custom) == 0 && len(presetQueries) == 0 {
+		return defaultQueries(sinceDays, now), nil
+	}
+	out := make([]string, 0, len(presetQueries)+len(custom))
+	out = append(out, presetQueries...)
+	out = append(out, custom...)
+	return out, nil
+}
+
+func expandPresets(presets []string, sinceDays int, now time.Time) ([]string, error) {
+	if len(presets) == 0 {
+		return nil, nil
+	}
+	catalog := presetCatalog(sinceDays, now)
+	out := make([]string, 0, len(presets)*2)
+	seen := map[string]struct{}{}
+	for _, p := range presets {
+		name := strings.ToLower(strings.TrimSpace(p))
+		queries, ok := catalog[name]
+		if !ok {
+			return nil, fmt.Errorf("unknown -preset %q (available: %s)", p, strings.Join(listPresetNames(catalog), ", "))
+		}
+		for _, q := range queries {
+			if _, ok := seen[q]; ok {
+				continue
+			}
+			seen[q] = struct{}{}
+			out = append(out, q)
+		}
+	}
+	return out, nil
+}
+
+func presetCatalog(sinceDays int, now time.Time) map[string][]string {
+	if sinceDays < 1 {
+		sinceDays = 1
+	}
+	since := now.AddDate(0, 0, -sinceDays).Format("2006-01-02")
+	return map[string][]string{
+		"oss": {
+			"stars:>50 created:>" + since,
+		},
+		"agents": {
+			"(agent OR mcp) created:>" + since + " stars:>80",
+		},
+		"cli": {
+			"topic:cli created:>" + since + " stars:>40",
+		},
+		"tui": {
+			"topic:tui created:>" + since + " stars:>20",
+		},
+		"devtools": {
+			"(developer tools) created:>" + since + " stars:>50",
+		},
+	}
+}
+
+func listPresetNames(catalog map[string][]string) []string {
+	keys := make([]string, 0, len(catalog))
+	for k := range catalog {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 func defaultConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil || strings.TrimSpace(home) == "" {
@@ -187,9 +262,12 @@ func loadConfig(path string) (appConfig, error) {
 	return cfg, nil
 }
 
-func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int) {
+func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, presets *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int) {
 	if !setFlags["q"] && len(cfg.Queries) > 0 {
 		*queries = append((*queries)[:0], cfg.Queries...)
+	}
+	if !setFlags["preset"] && len(cfg.Presets) > 0 {
+		*presets = append((*presets)[:0], cfg.Presets...)
 	}
 	if !setFlags["n"] && cfg.Limit > 0 {
 		*limit = cfg.Limit

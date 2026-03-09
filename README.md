@@ -42,10 +42,16 @@ gh-hype-scout
 # adjust default time window
 gh-hype-scout --since-days 30
 
+# built-in presets (repeatable): oss, agents, cli, tui, devtools
+gh-hype-scout --preset cli --preset agents
+
 # custom query (repeatable)
 gh-hype-scout \
   -q 'topic:cli created:>2026-01-01 stars:>30' \
   -q 'topic:tui created:>2026-01-01 stars:>20'
+
+# combine presets + custom queries
+gh-hype-scout --preset oss -q 'language:go stars:>80 created:>2026-01-01'
 
 # limit output rows
 gh-hype-scout -n 25
