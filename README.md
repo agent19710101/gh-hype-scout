@@ -31,6 +31,9 @@ gh-hype-scout -q 'topic:cli created:>2026-01-01 stars:>30' -q 'topic:tui created
 
 # JSON output
 gh-hype-scout --json
+
+# Include theme summary
+gh-hype-scout --themes
 ```
 
 ## Authentication

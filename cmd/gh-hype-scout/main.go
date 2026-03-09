@@ -41,9 +41,11 @@ func main() {
 	var queries multiFlag
 	var limit int
 	var jsonOut bool
+	var showThemes bool
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
+	flag.BoolVar(&showThemes, "themes", false, "Print theme distribution summary")
 	flag.Parse()
 
 	if len(queries) == 0 {
@@ -80,6 +82,10 @@ func main() {
 	}
 
 	printTable(scored)
+	if showThemes {
+		fmt.Println()
+		printThemeSummary(scored)
+	}
 }
 
 type multiFlag []string
@@ -191,6 +197,34 @@ func printTable(in []scoredRepo) {
 	for i, r := range in {
 		fmt.Fprintf(tw, "%d\t%s\t%d\t%.1f\t%.1f\t%.1f\t%s\t%s\n",
 			i+1, r.FullName, r.StargazersCount, r.AgeDays, r.StarsPerDay, r.HotScore, r.Category, r.Language)
+	}
+	tw.Flush()
+}
+
+func printThemeSummary(in []scoredRepo) {
+	type themeStats struct {
+		Count    int
+		AvgScore float64
+	}
+	m := map[string]themeStats{}
+	for _, r := range in {
+		s := m[r.Category]
+		s.Count++
+		s.AvgScore += r.HotScore
+		m[r.Category] = s
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "THEME\tCOUNT\tAVG_SCORE")
+	for _, k := range keys {
+		s := m[k]
+		avg := s.AvgScore / float64(s.Count)
+		fmt.Fprintf(tw, "%s\t%d\t%.1f\n", k, s.Count, avg)
 	}
 	tw.Flush()
 }
