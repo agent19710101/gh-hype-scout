@@ -1,0 +1,40 @@
+version: 2
+
+project_name: gh-hype-scout
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: gh-hype-scout
+    main: ./cmd/gh-hype-scout
+    binary: gh-hype-scout
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: default
+    builds:
+      - gh-hype-scout
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github

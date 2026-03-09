@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,24 +11,29 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
+
+const defaultDescWidth = 56
 
 type searchResponse struct {
 	Items []repo `json:"items"`
 }
 
 type repo struct {
-	FullName        string    `json:"full_name"`
-	Description     string    `json:"description"`
-	StargazersCount int       `json:"stargazers_count"`
-	HTMLURL         string    `json:"html_url"`
-	Language        string    `json:"language"`
-	CreatedAt       time.Time `json:"created_at"`
+	FullName        string    `json:"full_name" yaml:"full_name"`
+	Description     string    `json:"description" yaml:"description"`
+	StargazersCount int       `json:"stargazers_count" yaml:"stargazers_count"`
+	HTMLURL         string    `json:"html_url" yaml:"html_url"`
+	Language        string    `json:"language" yaml:"language"`
+	CreatedAt       time.Time `json:"created_at" yaml:"created_at"`
 }
 
 type scoredRepo struct {
@@ -36,6 +42,25 @@ type scoredRepo struct {
 	StarsPerDay float64 `json:"stars_per_day"`
 	HotScore    float64 `json:"hot_score"`
 	Category    string  `json:"category"`
+}
+
+type appConfig struct {
+	Queries     []string `yaml:"queries"`
+	Limit       int      `yaml:"limit"`
+	JSON        bool     `yaml:"json"`
+	Themes      bool     `yaml:"themes"`
+	MinStars    int      `yaml:"min_stars"`
+	SinceDays   int      `yaml:"since_days"`
+	MinAgeDays  int      `yaml:"min_age_days"`
+	MaxAgeDays  int      `yaml:"max_age_days"`
+	Sort        string   `yaml:"sort"`
+	ScorePreset string   `yaml:"score_preset"`
+	DescWidth   int      `yaml:"desc_width"`
+}
+
+type scoreConfig struct {
+	Sort        string
+	ScorePreset string
 }
 
 func main() {
@@ -48,6 +73,10 @@ func main() {
 	var minAgeDays int
 	var maxAgeDays int
 	var sortBy string
+	var scorePreset string
+	var configPath string
+	var descWidth int
+
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
@@ -56,14 +85,32 @@ func main() {
 	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q)")
 	flag.IntVar(&minAgeDays, "min-age-days", 0, "Hide repos younger than this age in days")
 	flag.IntVar(&maxAgeDays, "max-age-days", 0, "Hide repos older than this age in days")
-	flag.StringVar(&sortBy, "sort", "hot", "Sort results by: hot, stars-day, stars")
+	flag.StringVar(&sortBy, "sort", "hot", "Sort results by: hot, stars-day, stars, age")
+	flag.StringVar(&scorePreset, "score-preset", "hot", "Score preset for -sort hot: hot, fresh")
+	flag.StringVar(&configPath, "config", defaultConfigPath(), "Config file path")
+	flag.IntVar(&descWidth, "desc-width", defaultDescWidth, "Description column max width for table output")
 	flag.Parse()
+
+	setFlags := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) {
+		setFlags[f.Name] = true
+	})
+
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	applyConfigIfUnset(cfg, setFlags, &queries, &limit, &jsonOut, &showThemes, &minStars, &sinceDays, &minAgeDays, &maxAgeDays, &sortBy, &scorePreset, &descWidth)
 
 	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
 		log.Fatal(err)
 	}
-	if err := validateSortFlag(sortBy); err != nil {
+	scfg := scoreConfig{Sort: sortBy, ScorePreset: scorePreset}
+	if err := validateScoreConfig(scfg); err != nil {
 		log.Fatal(err)
+	}
+	if descWidth < 8 {
+		log.Fatal("-desc-width must be >= 8")
 	}
 
 	if len(queries) == 0 {
@@ -79,7 +126,7 @@ func main() {
 		log.Fatal("no repositories returned")
 	}
 
-	scored := score(all, sortBy)
+	scored := score(all, scfg)
 	if minStars > 0 {
 		filtered := scored[:0]
 		for _, r := range scored {
@@ -107,10 +154,72 @@ func main() {
 		return
 	}
 
-	printTable(scored)
+	printTable(os.Stdout, scored, descWidth)
 	if showThemes {
 		fmt.Println()
 		printThemeSummary(scored)
+	}
+}
+
+func defaultConfigPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		return ""
+	}
+	return filepath.Join(home, ".config", "gh-hype-scout", "config.yaml")
+}
+
+func loadConfig(path string) (appConfig, error) {
+	if strings.TrimSpace(path) == "" {
+		return appConfig{}, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return appConfig{}, nil
+		}
+		return appConfig{}, fmt.Errorf("read config %q: %w", path, err)
+	}
+	var cfg appConfig
+	if err := yaml.Unmarshal(b, &cfg); err != nil {
+		return appConfig{}, fmt.Errorf("parse config %q: %w", path, err)
+	}
+	return cfg, nil
+}
+
+func applyConfigIfUnset(cfg appConfig, setFlags map[string]bool, queries *multiFlag, limit *int, jsonOut *bool, showThemes *bool, minStars *int, sinceDays *int, minAgeDays *int, maxAgeDays *int, sortBy *string, scorePreset *string, descWidth *int) {
+	if !setFlags["q"] && len(cfg.Queries) > 0 {
+		*queries = append((*queries)[:0], cfg.Queries...)
+	}
+	if !setFlags["n"] && cfg.Limit > 0 {
+		*limit = cfg.Limit
+	}
+	if !setFlags["json"] && cfg.JSON {
+		*jsonOut = cfg.JSON
+	}
+	if !setFlags["themes"] && cfg.Themes {
+		*showThemes = cfg.Themes
+	}
+	if !setFlags["min-stars"] && cfg.MinStars > 0 {
+		*minStars = cfg.MinStars
+	}
+	if !setFlags["since-days"] && cfg.SinceDays > 0 {
+		*sinceDays = cfg.SinceDays
+	}
+	if !setFlags["min-age-days"] && cfg.MinAgeDays > 0 {
+		*minAgeDays = cfg.MinAgeDays
+	}
+	if !setFlags["max-age-days"] && cfg.MaxAgeDays > 0 {
+		*maxAgeDays = cfg.MaxAgeDays
+	}
+	if !setFlags["sort"] && strings.TrimSpace(cfg.Sort) != "" {
+		*sortBy = cfg.Sort
+	}
+	if !setFlags["score-preset"] && strings.TrimSpace(cfg.ScorePreset) != "" {
+		*scorePreset = cfg.ScorePreset
+	}
+	if !setFlags["desc-width"] && cfg.DescWidth > 0 {
+		*descWidth = cfg.DescWidth
 	}
 }
 
@@ -135,10 +244,16 @@ func (m *multiFlag) Set(v string) error {
 	return nil
 }
 
+type searchFunc func(client *http.Client, q string) ([]repo, error)
+
 func fetchAndMerge(client *http.Client, queries []string) ([]repo, error) {
+	return fetchAndMergeWithSearcher(client, queries, search)
+}
+
+func fetchAndMergeWithSearcher(client *http.Client, queries []string, searcher searchFunc) ([]repo, error) {
 	byName := make(map[string]repo)
 	for _, q := range queries {
-		repos, err := search(client, q)
+		repos, err := searcher(client, q)
 		if err != nil {
 			return nil, fmt.Errorf("query %q: %w", q, err)
 		}
@@ -212,7 +327,7 @@ func githubRateLimitHint(resp *http.Response) string {
 	return " (possible rate limit hit; provide GITHUB_TOKEN for higher limits)"
 }
 
-func score(in []repo, sortBy string) []scoredRepo {
+func score(in []repo, cfg scoreConfig) []scoredRepo {
 	now := time.Now().UTC()
 	out := make([]scoredRepo, 0, len(in))
 	for _, r := range in {
@@ -222,6 +337,9 @@ func score(in []repo, sortBy string) []scoredRepo {
 		}
 		spd := float64(r.StargazersCount) / age
 		hot := spd * math.Log10(float64(r.StargazersCount)+1)
+		if cfg.ScorePreset == "fresh" {
+			hot = hot * (1 + (1 / math.Sqrt(age)))
+		}
 		out = append(out, scoredRepo{
 			repo:        r,
 			AgeDays:     age,
@@ -230,17 +348,25 @@ func score(in []repo, sortBy string) []scoredRepo {
 			Category:    categorize(r),
 		})
 	}
-	sortScored(out, sortBy)
+	sortScored(out, cfg.Sort)
 	return out
 }
 
-func validateSortFlag(sortBy string) error {
-	switch sortBy {
-	case "hot", "stars-day", "stars":
-		return nil
+func validateScoreConfig(cfg scoreConfig) error {
+	switch cfg.Sort {
+	case "hot", "stars-day", "stars", "age":
 	default:
-		return fmt.Errorf("invalid -sort %q (expected: hot, stars-day, stars)", sortBy)
+		return fmt.Errorf("invalid -sort %q (expected: hot, stars-day, stars, age)", cfg.Sort)
 	}
+	switch cfg.ScorePreset {
+	case "hot", "fresh":
+	default:
+		return fmt.Errorf("invalid -score-preset %q (expected: hot, fresh)", cfg.ScorePreset)
+	}
+	if cfg.Sort != "hot" && cfg.ScorePreset != "hot" {
+		return fmt.Errorf("-score-preset=%q only applies with -sort hot", cfg.ScorePreset)
+	}
+	return nil
 }
 
 func sortScored(in []scoredRepo, sortBy string) {
@@ -256,6 +382,11 @@ func sortScored(in []scoredRepo, sortBy string) {
 				return in[i].HotScore > in[j].HotScore
 			}
 			return in[i].StargazersCount > in[j].StargazersCount
+		case "age":
+			if in[i].AgeDays == in[j].AgeDays {
+				return in[i].StarsPerDay > in[j].StarsPerDay
+			}
+			return in[i].AgeDays < in[j].AgeDays
 		default:
 			if in[i].HotScore == in[j].HotScore {
 				return in[i].StargazersCount > in[j].StargazersCount
@@ -308,14 +439,30 @@ func categorize(r repo) string {
 	}
 }
 
-func printTable(in []scoredRepo) {
-	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "RANK\tREPO\tSTARS\tAGE(d)\tSTARS/DAY\tSCORE\tCATEGORY\tLANG")
+func printTable(w io.Writer, in []scoredRepo, descWidth int) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "RANK\tREPO\tSTARS\tAGE(d)\tSTARS/DAY\tSCORE\tCATEGORY\tLANG\tDESC")
 	for i, r := range in {
-		fmt.Fprintf(tw, "%d\t%s\t%d\t%.1f\t%.1f\t%.1f\t%s\t%s\n",
-			i+1, r.FullName, r.StargazersCount, r.AgeDays, r.StarsPerDay, r.HotScore, r.Category, r.Language)
+		desc := truncateDescription(r.Description, descWidth)
+		fmt.Fprintf(tw, "%d\t%s\t%d\t%.1f\t%.1f\t%.1f\t%s\t%s\t%s\n",
+			i+1, r.FullName, r.StargazersCount, r.AgeDays, r.StarsPerDay, r.HotScore, r.Category, r.Language, desc)
 	}
 	tw.Flush()
+}
+
+func truncateDescription(s string, max int) string {
+	s = strings.Join(strings.Fields(strings.TrimSpace(s)), " ")
+	if s == "" {
+		return "-"
+	}
+	if max < 2 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max-1]) + "…"
 }
 
 func printThemeSummary(in []scoredRepo) {

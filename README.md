@@ -36,6 +36,9 @@ go build -o gh-hype-scout ./cmd/gh-hype-scout
 # default multi-theme scan (last 60 days by default)
 gh-hype-scout
 
+# use config defaults (auto-loads ~/.config/gh-hype-scout/config.yaml)
+gh-hype-scout
+
 # adjust default time window
 gh-hype-scout --since-days 30
 
@@ -59,10 +62,27 @@ gh-hype-scout --themes
 # alternative ranking views
 gh-hype-scout --sort stars-day
 gh-hype-scout --sort stars
+gh-hype-scout --sort age
+
+# freshness-biased scoring (only valid with --sort hot)
+gh-hype-scout --sort hot --score-preset fresh
+
+# tune table description width
+gh-hype-scout --desc-width 80
 
 # JSON output for automation
 gh-hype-scout --json
 ```
+
+## Configuration file
+
+`gh-hype-scout` auto-loads config from:
+
+- `~/.config/gh-hype-scout/config.yaml`
+
+Override with `--config /path/to/config.yaml`.
+
+Use [`config.example.yaml`](./config.example.yaml) as a starting point.
 
 ## Authentication
 
@@ -87,6 +107,12 @@ This is intentionally simple and explainable; future versions can include contri
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) and the scoped [RELEASE_PLAN.md](./RELEASE_PLAN.md) for v0.x milestones.
+
+## Releases
+
+- CI runs `go test ./...` on PRs and pushes.
+- Tagging `v*` triggers goreleaser via GitHub Actions.
+- Artifacts include Linux/macOS/Windows binaries and checksums.
 
 ## License
 

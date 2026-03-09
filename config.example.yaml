@@ -1,0 +1,13 @@
+# Copy to ~/.config/gh-hype-scout/config.yaml
+limit: 20
+since_days: 45
+min_stars: 100
+min_age_days: 3
+max_age_days: 90
+sort: hot
+score_preset: hot
+desc_width: 56
+themes: true
+queries:
+  - "topic:cli created:>2026-01-01 stars:>40"
+  - "topic:tui created:>2026-01-01 stars:>20"

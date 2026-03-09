@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -39,12 +42,34 @@ func TestScoreSortsDescendingByHotScore(t *testing.T) {
 		{FullName: "a/slow", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -100)},
 		{FullName: "b/fast", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -10)},
 	}
-	out := score(in, "hot")
+	out := score(in, scoreConfig{Sort: "hot", ScorePreset: "hot"})
 	if len(out) != 2 {
 		t.Fatalf("expected 2 scored repos, got %d", len(out))
 	}
 	if out[0].FullName != "b/fast" {
 		t.Fatalf("expected fastest repo first, got %s", out[0].FullName)
+	}
+}
+
+func TestScoreSortAge(t *testing.T) {
+	now := time.Now().UTC()
+	in := []repo{
+		{FullName: "a/older", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -20)},
+		{FullName: "b/newer", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -5)},
+	}
+	out := score(in, scoreConfig{Sort: "age", ScorePreset: "hot"})
+	if out[0].FullName != "b/newer" {
+		t.Fatalf("expected youngest repo first, got %s", out[0].FullName)
+	}
+}
+
+func TestFreshPresetChangesScore(t *testing.T) {
+	now := time.Now().UTC()
+	in := []repo{{FullName: "a/repo", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -30)}}
+	hot := score(in, scoreConfig{Sort: "hot", ScorePreset: "hot"})[0].HotScore
+	fresh := score(in, scoreConfig{Sort: "hot", ScorePreset: "fresh"})[0].HotScore
+	if fresh <= hot {
+		t.Fatalf("expected fresh preset to increase score, hot=%.4f fresh=%.4f", hot, fresh)
 	}
 }
 
@@ -115,15 +140,15 @@ func TestCategorize(t *testing.T) {
 	}
 }
 
-func TestValidateSortFlag(t *testing.T) {
-	valid := []string{"hot", "stars-day", "stars"}
-	for _, s := range valid {
-		if err := validateSortFlag(s); err != nil {
-			t.Fatalf("validateSortFlag(%q) unexpected error: %v", s, err)
-		}
+func TestValidateScoreConfig(t *testing.T) {
+	if err := validateScoreConfig(scoreConfig{Sort: "hot", ScorePreset: "hot"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if err := validateSortFlag("age"); err == nil {
-		t.Fatal("expected error for invalid sort")
+	if err := validateScoreConfig(scoreConfig{Sort: "age", ScorePreset: "hot"}); err != nil {
+		t.Fatalf("unexpected age+hot error: %v", err)
+	}
+	if err := validateScoreConfig(scoreConfig{Sort: "stars", ScorePreset: "fresh"}); err == nil {
+		t.Fatal("expected combination error for stars+fresh")
 	}
 }
 
@@ -146,5 +171,52 @@ func TestSortScoredByStarsDay(t *testing.T) {
 	sortScored(in, "stars-day")
 	if in[0].FullName != "b/two" {
 		t.Fatalf("expected highest stars/day first, got %s", in[0].FullName)
+	}
+}
+
+func TestFetchAndMergeDedupe(t *testing.T) {
+	searcher := func(_ *http.Client, q string) ([]repo, error) {
+		switch q {
+		case "q1":
+			return []repo{{FullName: "org/a", StargazersCount: 10}, {FullName: "org/b", StargazersCount: 20}}, nil
+		case "q2":
+			return []repo{{FullName: "org/a", StargazersCount: 30}, {FullName: "org/c", StargazersCount: 5}}, nil
+		default:
+			return nil, nil
+		}
+	}
+	out, err := fetchAndMergeWithSearcher(&http.Client{}, []string{"q1", "q2"}, searcher)
+	if err != nil {
+		t.Fatalf("fetchAndMergeWithSearcher error: %v", err)
+	}
+	if len(out) != 3 {
+		t.Fatalf("expected 3 repos after dedupe, got %d", len(out))
+	}
+
+	m := map[string]int{}
+	for _, r := range out {
+		m[r.FullName] = r.StargazersCount
+	}
+	if m["org/a"] != 30 {
+		t.Fatalf("expected dedupe to keep highest stars for org/a, got %d", m["org/a"])
+	}
+}
+
+func TestPrintTableGolden(t *testing.T) {
+	in := []scoredRepo{
+		{repo: repo{FullName: "org/alpha", Description: "A very long description that should be truncated to keep terminal output compact.", StargazersCount: 1200, Language: "Go"}, AgeDays: 12.3, StarsPerDay: 97.6, HotScore: 300.2, Category: "cli"},
+		{repo: repo{FullName: "org/beta", Description: "", StargazersCount: 500, Language: "Rust"}, AgeDays: 25.0, StarsPerDay: 20.0, HotScore: 54.2, Category: "tui"},
+	}
+
+	var b bytes.Buffer
+	printTable(&b, in, 28)
+
+	goldenPath := filepath.Join("testdata", "table.golden")
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if strings.TrimSpace(b.String()) != strings.TrimSpace(string(want)) {
+		t.Fatalf("table output mismatch\n--- got ---\n%s\n--- want ---\n%s", b.String(), string(want))
 	}
 }

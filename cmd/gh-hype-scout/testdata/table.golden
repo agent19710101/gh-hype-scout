@@ -1,0 +1,3 @@
+RANK  REPO       STARS  AGE(d)  STARS/DAY  SCORE  CATEGORY  LANG  DESC
+1     org/alpha  1200   12.3    97.6       300.2  cli       Go    A very long description tha…
+2     org/beta   500    25.0    20.0       54.2   tui       Rust  -
