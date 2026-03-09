@@ -10,7 +10,7 @@ GitHub Trending is useful but noisy and less configurable for focused discovery.
 
 ## Status
 
-- Current version: **v0.9.0**
+- Current version: **v1.0.0**
 - Works today for terminal scanning + JSON export + watch automation sinks + optional TUI mode
 - Priorities: deeper momentum analytics, offline snapshot diffing, webhook hardening
 
@@ -83,6 +83,8 @@ gh-hype-scout --watch --interval 120
 # optional TUI mode (stdout remains default)
 gh-hype-scout --ui tui
 
+# TUI handles very long repo names without layout breakage (adaptive truncation)
+
 # TUI + watch mode
 gh-hype-scout --ui tui --watch --interval 120
 
@@ -136,6 +138,10 @@ Team routing policy packs:
 Plugin SDK hook (external processor command):
 - `--plugin-cmd 'cat > /tmp/delta.json'`
 
+Webhook auth/signing:
+- `--watch-auth-token <token>`
+- `--watch-sign-secret <hmac-secret>`
+
 Use [`config.example.yaml`](./config.example.yaml) as a starting point.
 
 ## Authentication
@@ -169,7 +175,7 @@ See [ROADMAP.md](./ROADMAP.md) and the scoped [RELEASE_PLAN.md](./RELEASE_PLAN.m
 - CI runs `go test ./...` on PRs and pushes.
 - Tagging `v*` triggers goreleaser via GitHub Actions.
 - Artifacts include Linux/macOS/Windows binaries and checksums.
-- Latest planned cut from this branch: **v0.9.0**.
+- Latest planned cut from this branch: **v1.0.0**.
 
 ## License
 

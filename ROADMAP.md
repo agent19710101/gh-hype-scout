@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.9.0)
+## Shipped (through v1.0.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)
@@ -22,13 +22,14 @@
 - ✅ Advanced momentum model variants (`--momentum-model baseline|decay|trend`)
 - ✅ Team routing policy packs (`routing_profiles`, `--routing-profile`)
 - ✅ Plugin SDK hook for external processors (`--plugin-cmd`)
+- ✅ TUI long-repository-name handling with adaptive truncation and responsive layout
 
-## Next (v1.0.0)
+## Next (v1.1.0)
 
-- [ ] Persistent interactive TUI controls (filters/sort switching)
-- [ ] Signed webhook key rotation support
-- [ ] Snapshot compaction and retention policies by profile
-- [ ] Plugin registry and typed plugin contracts
+- [ ] Interactive sortable/filterable TUI controls with persisted layouts
+- [ ] Webhook key rotation and delivery audit export
+- [ ] Snapshot compaction and profile-based retention policies
+- [ ] Typed plugin contracts and plugin registry metadata
 
 ## Open ideas
 

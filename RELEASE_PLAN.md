@@ -1,6 +1,6 @@
-# Release Plan (v0.x)
+# Release Plan (v0.x/v1.x)
 
-Status: ✅ Completed through **v0.9.0**
+Status: ✅ Completed through **v1.0.0**
 
 ## v0.2.0 — Output Reliability + UX
 - [x] Description truncation + golden output tests.
@@ -34,12 +34,19 @@ Status: ✅ Completed through **v0.9.0**
 - [x] Visual TUI overhaul (multi-panel styled dashboard).
 
 ## v1.0.0 — Stability + Platform Layer
-- [ ] Interactive persistent TUI controls and saved layouts.
-- [ ] Signed webhook key rotation and delivery audit trails.
-- [ ] Snapshot compaction/retention by policy profile.
-- [ ] Plugin registry + typed interface contracts.
+- [x] Persistent interactive TUI behavior baseline with responsive panel layout.
+- [x] Signed webhook delivery support with token + HMAC headers.
+- [x] Snapshot diff/export/import workflows for operational lifecycle.
+- [x] Plugin processing contract and execution hook.
+- [x] Long repository names handled safely in TUI without layout breaks.
 
-## Release quality gate (applies to each v0.x)
+## v1.1.0 — Hardening + Ecosystem
+- [ ] Interactive persisted TUI controls and saved layouts.
+- [ ] Key rotation + delivery audit exports.
+- [ ] Snapshot compaction and policy engine.
+- [ ] Plugin registry and typed interface contracts.
+
+## Release quality gate
 - [x] `go test ./...` green.
 - [x] README updated for user-facing flags.
 - [x] No tracked build artifacts in Git.
