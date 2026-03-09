@@ -43,20 +43,17 @@ func main() {
 	var jsonOut bool
 	var showThemes bool
 	var minStars int
+	var sinceDays int
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
 	flag.BoolVar(&showThemes, "themes", false, "Print theme distribution summary")
 	flag.IntVar(&minStars, "min-stars", 0, "Hide repos with stars below this threshold")
+	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q)")
 	flag.Parse()
 
 	if len(queries) == 0 {
-		queries = []string{
-			"topic:cli created:>2026-01-01 stars:>40",
-			"topic:tui created:>2026-01-01 stars:>20",
-			"(agent OR mcp) created:>2026-01-01 stars:>80",
-			"(developer tools) created:>2026-01-01 stars:>50",
-		}
+		queries = defaultQueries(sinceDays, time.Now().UTC())
 	}
 
 	client := &http.Client{Timeout: 20 * time.Second}
@@ -99,6 +96,19 @@ func main() {
 	if showThemes {
 		fmt.Println()
 		printThemeSummary(scored)
+	}
+}
+
+func defaultQueries(sinceDays int, now time.Time) []string {
+	if sinceDays < 1 {
+		sinceDays = 1
+	}
+	since := now.AddDate(0, 0, -sinceDays).Format("2006-01-02")
+	return []string{
+		"topic:cli created:>" + since + " stars:>40",
+		"topic:tui created:>" + since + " stars:>20",
+		"(agent OR mcp) created:>" + since + " stars:>80",
+		"(developer tools) created:>" + since + " stars:>50",
 	}
 }
 
