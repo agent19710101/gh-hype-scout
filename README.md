@@ -56,6 +56,10 @@ gh-hype-scout --min-age-days 7 --max-age-days 45
 # include category/theme summary
 gh-hype-scout --themes
 
+# alternative ranking views
+gh-hype-scout --sort stars-day
+gh-hype-scout --sort stars
+
 # JSON output for automation
 gh-hype-scout --json
 ```

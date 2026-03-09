@@ -39,7 +39,7 @@ func TestScoreSortsDescendingByHotScore(t *testing.T) {
 		{FullName: "a/slow", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -100)},
 		{FullName: "b/fast", StargazersCount: 100, CreatedAt: now.AddDate(0, 0, -10)},
 	}
-	out := score(in)
+	out := score(in, "hot")
 	if len(out) != 2 {
 		t.Fatalf("expected 2 scored repos, got %d", len(out))
 	}
@@ -112,5 +112,39 @@ func TestCategorize(t *testing.T) {
 				t.Fatalf("categorize() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestValidateSortFlag(t *testing.T) {
+	valid := []string{"hot", "stars-day", "stars"}
+	for _, s := range valid {
+		if err := validateSortFlag(s); err != nil {
+			t.Fatalf("validateSortFlag(%q) unexpected error: %v", s, err)
+		}
+	}
+	if err := validateSortFlag("age"); err == nil {
+		t.Fatal("expected error for invalid sort")
+	}
+}
+
+func TestSortScoredByStars(t *testing.T) {
+	in := []scoredRepo{
+		{repo: repo{FullName: "a/one", StargazersCount: 50}, StarsPerDay: 10, HotScore: 20},
+		{repo: repo{FullName: "b/two", StargazersCount: 200}, StarsPerDay: 4, HotScore: 8},
+	}
+	sortScored(in, "stars")
+	if in[0].FullName != "b/two" {
+		t.Fatalf("expected highest stars first, got %s", in[0].FullName)
+	}
+}
+
+func TestSortScoredByStarsDay(t *testing.T) {
+	in := []scoredRepo{
+		{repo: repo{FullName: "a/one", StargazersCount: 200}, StarsPerDay: 4, HotScore: 8},
+		{repo: repo{FullName: "b/two", StargazersCount: 50}, StarsPerDay: 10, HotScore: 20},
+	}
+	sortScored(in, "stars-day")
+	if in[0].FullName != "b/two" {
+		t.Fatalf("expected highest stars/day first, got %s", in[0].FullName)
 	}
 }

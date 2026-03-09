@@ -47,6 +47,7 @@ func main() {
 	var sinceDays int
 	var minAgeDays int
 	var maxAgeDays int
+	var sortBy string
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
@@ -55,9 +56,13 @@ func main() {
 	flag.IntVar(&sinceDays, "since-days", 60, "Default query window in days (only used without -q)")
 	flag.IntVar(&minAgeDays, "min-age-days", 0, "Hide repos younger than this age in days")
 	flag.IntVar(&maxAgeDays, "max-age-days", 0, "Hide repos older than this age in days")
+	flag.StringVar(&sortBy, "sort", "hot", "Sort results by: hot, stars-day, stars")
 	flag.Parse()
 
 	if err := validateAgeFlags(minAgeDays, maxAgeDays); err != nil {
+		log.Fatal(err)
+	}
+	if err := validateSortFlag(sortBy); err != nil {
 		log.Fatal(err)
 	}
 
@@ -74,7 +79,7 @@ func main() {
 		log.Fatal("no repositories returned")
 	}
 
-	scored := score(all)
+	scored := score(all, sortBy)
 	if minStars > 0 {
 		filtered := scored[:0]
 		for _, r := range scored {
@@ -207,7 +212,7 @@ func githubRateLimitHint(resp *http.Response) string {
 	return " (possible rate limit hit; provide GITHUB_TOKEN for higher limits)"
 }
 
-func score(in []repo) []scoredRepo {
+func score(in []repo, sortBy string) []scoredRepo {
 	now := time.Now().UTC()
 	out := make([]scoredRepo, 0, len(in))
 	for _, r := range in {
@@ -225,13 +230,39 @@ func score(in []repo) []scoredRepo {
 			Category:    categorize(r),
 		})
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].HotScore == out[j].HotScore {
-			return out[i].StargazersCount > out[j].StargazersCount
-		}
-		return out[i].HotScore > out[j].HotScore
-	})
+	sortScored(out, sortBy)
 	return out
+}
+
+func validateSortFlag(sortBy string) error {
+	switch sortBy {
+	case "hot", "stars-day", "stars":
+		return nil
+	default:
+		return fmt.Errorf("invalid -sort %q (expected: hot, stars-day, stars)", sortBy)
+	}
+}
+
+func sortScored(in []scoredRepo, sortBy string) {
+	sort.Slice(in, func(i, j int) bool {
+		switch sortBy {
+		case "stars-day":
+			if in[i].StarsPerDay == in[j].StarsPerDay {
+				return in[i].StargazersCount > in[j].StargazersCount
+			}
+			return in[i].StarsPerDay > in[j].StarsPerDay
+		case "stars":
+			if in[i].StargazersCount == in[j].StargazersCount {
+				return in[i].HotScore > in[j].HotScore
+			}
+			return in[i].StargazersCount > in[j].StargazersCount
+		default:
+			if in[i].HotScore == in[j].HotScore {
+				return in[i].StargazersCount > in[j].StargazersCount
+			}
+			return in[i].HotScore > in[j].HotScore
+		}
+	})
 }
 
 func validateAgeFlags(minAgeDays, maxAgeDays int) error {

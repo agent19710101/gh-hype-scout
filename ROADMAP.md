@@ -11,7 +11,8 @@
 ## Mid-term (v1)
 
 - [ ] Add saved query presets (`--preset oss`, `--preset agents`, etc.).
-- [ ] Add optional output sorting modes (`score`, `stars`, `age`, `stars/day`).
+- [x] Add optional output sorting modes (`hot`, `stars`, `stars-day`).
+- [ ] Add optional age-focused sort mode (`age`).
 - [ ] Add config file support (`~/.config/gh-hype-scout/config.yaml`).
 - [ ] Add release automation (GitHub Actions + goreleaser).
 
