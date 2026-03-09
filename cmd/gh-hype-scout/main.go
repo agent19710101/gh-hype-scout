@@ -42,10 +42,12 @@ func main() {
 	var limit int
 	var jsonOut bool
 	var showThemes bool
+	var minStars int
 	flag.Var(&queries, "q", "GitHub search query (repeatable)")
 	flag.IntVar(&limit, "n", 15, "Top results to print")
 	flag.BoolVar(&jsonOut, "json", false, "Print JSON output")
 	flag.BoolVar(&showThemes, "themes", false, "Print theme distribution summary")
+	flag.IntVar(&minStars, "min-stars", 0, "Hide repos with stars below this threshold")
 	flag.Parse()
 
 	if len(queries) == 0 {
@@ -67,6 +69,18 @@ func main() {
 	}
 
 	scored := score(all)
+	if minStars > 0 {
+		filtered := scored[:0]
+		for _, r := range scored {
+			if r.StargazersCount >= minStars {
+				filtered = append(filtered, r)
+			}
+		}
+		scored = filtered
+	}
+	if len(scored) == 0 {
+		log.Fatal("no repositories matched filters")
+	}
 	if limit > len(scored) {
 		limit = len(scored)
 	}

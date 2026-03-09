@@ -34,6 +34,9 @@ gh-hype-scout --json
 
 # Include theme summary
 gh-hype-scout --themes
+
+# Filter out smaller repos
+gh-hype-scout --min-stars 500
 ```
 
 ## Authentication
