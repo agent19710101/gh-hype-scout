@@ -1,6 +1,6 @@
 # Roadmap
 
-## Shipped (through v0.8.0)
+## Shipped (through v0.9.0)
 
 - ✅ Age filters: `--min-age-days` / `--max-age-days`
 - ✅ Rate-limit aware API hints (403/429)
@@ -19,16 +19,19 @@
 - ✅ Modular architecture (thin `main`, internal packages)
 - ✅ Optional Bubble Tea TUI mode (`--ui tui`) while preserving stdout default
 - ✅ Snapshot export/import/diff workflows
+- ✅ Advanced momentum model variants (`--momentum-model baseline|decay|trend`)
+- ✅ Team routing policy packs (`routing_profiles`, `--routing-profile`)
+- ✅ Plugin SDK hook for external processors (`--plugin-cmd`)
 
-## Next (v0.9.0)
+## Next (v1.0.0)
 
-- [ ] Multi-panel live TUI with interactive filters
-- [ ] Snapshot compression + archive rotation policies
-- [ ] Advanced momentum models (time-weighted regressions)
-- [ ] Team-level notification routing profiles
+- [ ] Persistent interactive TUI controls (filters/sort switching)
+- [ ] Signed webhook key rotation support
+- [ ] Snapshot compaction and retention policies by profile
+- [ ] Plugin registry and typed plugin contracts
 
 ## Open ideas
 
-- [ ] Plugin SDK for third-party output/analysis modules
-- [ ] Historical replay mode for trend strategy backtesting
-- [ ] Built-in anomaly detector for sudden repo spikes
+- [ ] Historical replay mode for strategy backtesting
+- [ ] Built-in anomaly detection for sudden momentum shifts
+- [ ] Team workspace templates for multi-repo scouting

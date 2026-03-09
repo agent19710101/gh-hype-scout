@@ -9,6 +9,7 @@ import (
 	"github.com/agent19710101/gh-hype-scout/internal/config"
 	"github.com/agent19710101/gh-hype-scout/internal/githubapi"
 	"github.com/agent19710101/gh-hype-scout/internal/output"
+	"github.com/agent19710101/gh-hype-scout/internal/plugin"
 	"github.com/agent19710101/gh-hype-scout/internal/query"
 	"github.com/agent19710101/gh-hype-scout/internal/rank"
 	"github.com/agent19710101/gh-hype-scout/internal/snapshot"
@@ -76,7 +77,7 @@ func runOnce(cfg config.Run, queries []string, client *githubapi.Client) ([]rank
 	}
 	scored := rank.Score(all, rank.Config{Sort: cfg.Sort, ScorePreset: cfg.ScorePreset})
 	store, _ := snapshot.Load(cfg.SnapshotPath)
-	rank.ApplyAcceleration(scored, deriveAcceleration(store, scored, time.Now().UTC()))
+	rank.ApplyAcceleration(scored, deriveAcceleration(store, scored, time.Now().UTC(), cfg.MomentumModel))
 	return rank.Filter(scored, cfg.MinStars, cfg.MinAgeDays, cfg.MaxAgeDays, cfg.Limit)
 }
 
@@ -95,7 +96,7 @@ func render(w io.Writer, cfg config.Run, scored []rank.Repo) error {
 	return nil
 }
 
-func deriveAcceleration(store snapshot.Store, current []rank.Repo, now time.Time) map[string]float64 {
+func deriveAcceleration(store snapshot.Store, current []rank.Repo, now time.Time, model string) map[string]float64 {
 	if len(store.Runs) == 0 {
 		return map[string]float64{}
 	}
@@ -135,7 +136,14 @@ func deriveAcceleration(store snapshot.Store, current []rank.Repo, now time.Time
 				}
 			}
 		}
-		accel[r.FullName] = recentRate - baselineRate
+		value := recentRate - baselineRate
+		switch strings.ToLower(strings.TrimSpace(model)) {
+		case "decay":
+			value = value / (1 + r.AgeDays/180)
+		case "trend":
+			value = (0.7 * recentRate) + (0.3 * value)
+		}
+		accel[r.FullName] = value
 	}
 	return accel
 }
@@ -171,6 +179,11 @@ func (r Runner) runWatch(cfg config.Run, queries []string, client *githubapi.Cli
 			go func(ts time.Time) {
 				_ = output.SendDeltaWebhook(webhook, ts, reportCopy, output.WebhookOptions{AuthToken: cfg.WatchAuthToken, SignSecret: cfg.WatchSignSecret})
 			}(now)
+			if strings.TrimSpace(cfg.PluginCmd) != "" {
+				go func(rep output.DeltaReport) {
+					_ = plugin.ExternalCommand{Command: cfg.PluginCmd}.Process(rep)
+				}(report)
+			}
 		}
 		_ = snapshot.Append(cfg.SnapshotPath, scored, now)
 		prev = snapshot.FromRanked(scored)

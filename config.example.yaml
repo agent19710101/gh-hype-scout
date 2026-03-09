@@ -15,7 +15,14 @@ interval_seconds: 300
 # watch_webhook: https://example.com/gh-hype-scout-delta
 # watch_auth_token: your-token
 # watch_sign_secret: your-hmac-secret
+routing_profiles:
+  teamA:
+    watch_jsonl: /tmp/gh-hype-scout-teamA.jsonl
+    watch_webhook: https://example.com/teamA-webhook
 ui: stdout
+momentum_model: baseline
+# routing_profile: teamA
+# plugin_cmd: "cat > /tmp/gh-hype-scout-delta.json"
 # snapshot_export: /tmp/gh-hype-scout-export.json
 # snapshot_import: /tmp/gh-hype-scout-export.json
 # snapshot_diff: /tmp/a.json:/tmp/b.json

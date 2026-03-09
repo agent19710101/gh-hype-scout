@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.9.0 - 2026-03-09
+
+### Added
+- Advanced momentum model variants via `--momentum-model baseline|decay|trend`.
+- Team routing policy packs via config (`routing_profiles`) and `--routing-profile` selector.
+- Plugin SDK hook for external processors via `--plugin-cmd` (JSON delta payload on stdin).
+
+### Improved
+- Major TUI visual overhaul using Bubble Tea + Lip Gloss:
+  - multi-panel layout,
+  - styled headers and borders,
+  - momentum signals panel,
+  - keyboard navigation hints.
+- stdout mode remains default; TUI is opt-in (`--ui tui`).
+
 ## v0.8.0 - 2026-03-09
 
 ### Added

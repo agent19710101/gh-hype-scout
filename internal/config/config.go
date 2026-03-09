@@ -25,32 +25,41 @@ type PresetProfile struct {
 	AlertAccel  float64 `yaml:"alert_accel"`
 }
 
+type RoutingProfile struct {
+	WatchJSONL   string `yaml:"watch_jsonl"`
+	WatchWebhook string `yaml:"watch_webhook"`
+}
+
 type File struct {
-	Queries         []string                 `yaml:"queries"`
-	Presets         []string                 `yaml:"presets"`
-	PresetOverrides map[string][]string      `yaml:"preset_overrides"`
-	PresetProfiles  map[string]PresetProfile `yaml:"preset_profiles"`
-	Limit           int                      `yaml:"limit"`
-	JSON            bool                     `yaml:"json"`
-	Themes          bool                     `yaml:"themes"`
-	MinStars        int                      `yaml:"min_stars"`
-	SinceDays       int                      `yaml:"since_days"`
-	MinAgeDays      int                      `yaml:"min_age_days"`
-	MaxAgeDays      int                      `yaml:"max_age_days"`
-	Sort            string                   `yaml:"sort"`
-	ScorePreset     string                   `yaml:"score_preset"`
-	DescWidth       int                      `yaml:"desc_width"`
-	Watch           bool                     `yaml:"watch"`
-	IntervalSeconds int                      `yaml:"interval_seconds"`
-	SnapshotPath    string                   `yaml:"snapshot_path"`
-	WatchJSONL      string                   `yaml:"watch_jsonl"`
-	WatchWebhook    string                   `yaml:"watch_webhook"`
-	WatchAuthToken  string                   `yaml:"watch_auth_token"`
-	WatchSignSecret string                   `yaml:"watch_sign_secret"`
-	UI              string                   `yaml:"ui"`
-	SnapshotExport  string                   `yaml:"snapshot_export"`
-	SnapshotImport  string                   `yaml:"snapshot_import"`
-	SnapshotDiff    string                   `yaml:"snapshot_diff"`
+	Queries         []string                  `yaml:"queries"`
+	Presets         []string                  `yaml:"presets"`
+	PresetOverrides map[string][]string       `yaml:"preset_overrides"`
+	PresetProfiles  map[string]PresetProfile  `yaml:"preset_profiles"`
+	RoutingProfiles map[string]RoutingProfile `yaml:"routing_profiles"`
+	Limit           int                       `yaml:"limit"`
+	JSON            bool                      `yaml:"json"`
+	Themes          bool                      `yaml:"themes"`
+	MinStars        int                       `yaml:"min_stars"`
+	SinceDays       int                       `yaml:"since_days"`
+	MinAgeDays      int                       `yaml:"min_age_days"`
+	MaxAgeDays      int                       `yaml:"max_age_days"`
+	Sort            string                    `yaml:"sort"`
+	ScorePreset     string                    `yaml:"score_preset"`
+	DescWidth       int                       `yaml:"desc_width"`
+	Watch           bool                      `yaml:"watch"`
+	IntervalSeconds int                       `yaml:"interval_seconds"`
+	SnapshotPath    string                    `yaml:"snapshot_path"`
+	WatchJSONL      string                    `yaml:"watch_jsonl"`
+	WatchWebhook    string                    `yaml:"watch_webhook"`
+	WatchAuthToken  string                    `yaml:"watch_auth_token"`
+	WatchSignSecret string                    `yaml:"watch_sign_secret"`
+	UI              string                    `yaml:"ui"`
+	SnapshotExport  string                    `yaml:"snapshot_export"`
+	SnapshotImport  string                    `yaml:"snapshot_import"`
+	SnapshotDiff    string                    `yaml:"snapshot_diff"`
+	MomentumModel   string                    `yaml:"momentum_model"`
+	RoutingProfile  string                    `yaml:"routing_profile"`
+	PluginCmd       string                    `yaml:"plugin_cmd"`
 }
 
 type Run struct {
@@ -79,6 +88,9 @@ type Run struct {
 	SnapshotImport  string
 	SnapshotDiff    string
 	AlertAccel      float64
+	MomentumModel   string
+	RoutingProfile  string
+	PluginCmd       string
 	Explicit        map[string]bool
 }
 
@@ -126,6 +138,9 @@ func Parse() (Run, error) {
 	flag.StringVar(&cfg.SnapshotExport, "snapshot-export", "", "Export snapshots to a JSON file and exit")
 	flag.StringVar(&cfg.SnapshotImport, "snapshot-import", "", "Import snapshots from a JSON file and exit")
 	flag.StringVar(&cfg.SnapshotDiff, "snapshot-diff", "", "Compare two snapshot files: pathA:pathB")
+	flag.StringVar(&cfg.MomentumModel, "momentum-model", "baseline", "Momentum model: baseline, decay, trend")
+	flag.StringVar(&cfg.RoutingProfile, "routing-profile", "", "Routing profile to apply from config")
+	flag.StringVar(&cfg.PluginCmd, "plugin-cmd", "", "External plugin command to process watch events")
 	flag.Parse()
 
 	set := map[string]bool{}
@@ -183,9 +198,6 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 		}
 	}
 	if len(fc.PresetProfiles) > 0 {
-		if cfg.Explicit == nil {
-			cfg.Explicit = map[string]bool{}
-		}
 		for _, p := range cfg.Presets {
 			prof, ok := fc.PresetProfiles[strings.ToLower(strings.TrimSpace(p))]
 			if !ok {
@@ -204,6 +216,22 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 				cfg.AlertAccel = prof.AlertAccel
 			}
 			break
+		}
+	}
+	if !set["routing-profile"] && strings.TrimSpace(cfg.RoutingProfile) == "" && len(fc.RoutingProfiles) > 0 {
+		for name := range fc.RoutingProfiles {
+			cfg.RoutingProfile = name
+			break
+		}
+	}
+	if strings.TrimSpace(cfg.RoutingProfile) != "" {
+		if rp, ok := fc.RoutingProfiles[cfg.RoutingProfile]; ok {
+			if !set["watch-jsonl"] && strings.TrimSpace(rp.WatchJSONL) != "" {
+				cfg.WatchJSONL = rp.WatchJSONL
+			}
+			if !set["watch-webhook"] && strings.TrimSpace(rp.WatchWebhook) != "" {
+				cfg.WatchWebhook = rp.WatchWebhook
+			}
 		}
 	}
 	if !set["n"] && fc.Limit > 0 {
@@ -266,6 +294,12 @@ func merge(cfg *Run, fc File, set map[string]bool) {
 	if !set["snapshot-diff"] && strings.TrimSpace(fc.SnapshotDiff) != "" {
 		cfg.SnapshotDiff = fc.SnapshotDiff
 	}
+	if !set["momentum-model"] && strings.TrimSpace(fc.MomentumModel) != "" {
+		cfg.MomentumModel = fc.MomentumModel
+	}
+	if !set["plugin-cmd"] && strings.TrimSpace(fc.PluginCmd) != "" {
+		cfg.PluginCmd = fc.PluginCmd
+	}
 }
 
 func validate(cfg Run, intervalSeconds int) error {
@@ -294,6 +328,11 @@ func validate(cfg Run, intervalSeconds int) error {
 	case "", "stdout", "tui":
 	default:
 		return fmt.Errorf("invalid -ui %q (expected: stdout, tui)", cfg.UIMode)
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.MomentumModel)) {
+	case "", "baseline", "decay", "trend":
+	default:
+		return fmt.Errorf("invalid -momentum-model %q (expected: baseline, decay, trend)", cfg.MomentumModel)
 	}
 	return nil
 }
